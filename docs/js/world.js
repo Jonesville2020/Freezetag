@@ -144,6 +144,27 @@ export class World {
     return false;
   }
 
+  // Line of sight between two characters. Walls are taller than anyone, so any
+  // wall in the way blocks the view. Three rays (centre and both shoulders)
+  // let a character peeking around a corner be seen.
+  sees(a, b) {
+    const dx = b.x - a.x, dz = b.z - a.z, l = Math.hypot(dx, dz);
+    if (l < 0.01) return true;
+    const nx = -dz / l * 0.4, nz = dx / l * 0.4;
+    return !this.blocked(a.x, a.z, b.x, b.z, 0)
+      || !this.blocked(a.x, a.z, b.x + nx, b.z + nz, 0)
+      || !this.blocked(a.x, a.z, b.x - nx, b.z - nz, 0);
+  }
+
+  // Nearest walkable point to (x, z), inside the arena.
+  snapOpen(x, z) {
+    const c = (v) => Math.max(-HALF + 1, Math.min(HALF - 1, v));
+    x = c(x); z = c(z);
+    if (this.isOpen(x, z)) return { x, z };
+    const [i, j] = this.nearestOpen(x, z);
+    return { x: i + 0.5 - HALF, z: j + 0.5 - HALF };
+  }
+
   #buildNavGrid() {
     this.N = SIZE;
     this.open = new Uint8Array(this.N * this.N);

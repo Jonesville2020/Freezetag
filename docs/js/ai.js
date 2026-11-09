@@ -1,3 +1,5 @@
+import { Navigator } from './nav.js';
+
 const rand = (a, b) => a + Math.random() * (b - a);
 const dist = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
 
@@ -13,7 +15,7 @@ export const LEVELS = {
 export class Brain {
   constructor(game, e, level) {
     this.g = game; this.e = e; this.lv = LEVELS[level] ?? LEVELS.kid;
-    this.path = []; this.goal = null; this.repath = Math.random() * 0.4;
+    this.nav = new Navigator();
     this.mem = null; this.memT = 0; this.spot = 0; this.wander = null; this.wanderT = 0;
     this.fleeT = 0; this.fleeGoal = null; this.speedMul = 1; this.stand = false;
   }
@@ -22,16 +24,17 @@ export class Brain {
     const e = this.e;
     const d = dist(e.pos, o.pos);
     if (d > range) return false;
-    return d < 3.5 || !this.g.world.blocked(e.pos.x, e.pos.z, o.pos.x, o.pos.z, 0);
+    return d < 3.5 || this.g.world.sees(e.pos, o.pos);
   }
 
   // Returns a unit-length (or zero) direction in world space.
   think(dt) {
     this.speedMul = 1;
     this.stand = false;
-    this.repath -= dt; this.wanderT -= dt;
+    this.wanderT -= dt;
     const goal = this.e.seeker ? this.#seeker(dt) : this.#runner(dt);
-    return this.#steer(goal);
+    if (this.stand || !goal) return { x: 0, z: 0 };
+    return this.nav.steer(this.g.world, this.e.pos, goal, dt);
   }
 
   #seeker(dt) {
@@ -125,34 +128,5 @@ export class Brain {
       if (s > bs) { bs = s; best = c; }
     }
     return best ?? g.world.randomOpenPoint();
-  }
-
-  #steer(goal) {
-    const { g, e } = this;
-    if (this.stand || !goal) return { x: 0, z: 0 };
-    const d = dist(e.pos, goal);
-    if (d < 0.35) return { x: 0, z: 0 };
-    let target = goal;
-    if (d > 1.5 || g.world.blocked(e.pos.x, e.pos.z, goal.x, goal.z, 0.45)) {
-      const direct = d < 9 && !g.world.blocked(e.pos.x, e.pos.z, goal.x, goal.z, 0.5);
-      if (!direct) {
-        const moved = !this.goal || dist(this.goal, goal) > 2.5;
-        if (moved || this.repath <= 0 || !this.path.length) {
-          this.path = g.world.path(e.pos.x, e.pos.z, goal.x, goal.z);
-          this.goal = { x: goal.x, z: goal.z };
-          this.repath = rand(0.5, 0.9);
-        }
-        while (this.path.length > 1 && dist(e.pos, this.path[0]) < 0.9) this.path.shift();
-        if (this.path.length) {
-          target = this.path[0];
-          for (let i = 1; i < Math.min(this.path.length, 6); i++) {
-            if (g.world.blocked(e.pos.x, e.pos.z, this.path[i].x, this.path[i].z, 0.45)) break;
-            target = this.path[i];
-          }
-        }
-      }
-    }
-    const dx = target.x - e.pos.x, dz = target.z - e.pos.z, l = Math.hypot(dx, dz) || 1;
-    return { x: dx / l, z: dz / l };
   }
 }

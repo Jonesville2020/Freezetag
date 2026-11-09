@@ -5,6 +5,7 @@ import { ChaseCamera } from './camera.js';
 import { Input } from './input.js';
 import { Brain, LEVELS } from './ai.js';
 import { Sfx } from './sfx.js';
+import { Navigator } from './nav.js';
 
 const $ = (id) => document.getElementById(id);
 const SEEKER_SPEED = 6.6, RUNNER_SPEED = 6.0, RADIUS = 0.45, TAG_RANGE = 1.0;
@@ -21,6 +22,24 @@ const camera = new THREE.PerspectiveCamera(58, 1, 0.1, 200);
 const rig = new ChaseCamera(camera);
 const input = new Input($('game'), $('stick'), $('stick-knob'));
 const sfx = new Sfx();
+
+const settings = { scheme: 'direct', camera: 'separate', ...JSON.parse(localStorage.getItem('ft3d-settings') || '{}') };
+const tapNav = new Navigator();
+const ground = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+const pickRay = new THREE.Raycaster();
+const tapState = { target: null, stuck: 0 };
+const targetMark = new THREE.Mesh(new THREE.RingGeometry(0.35, 0.5, 32),
+  new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.9, depthWrite: false }));
+targetMark.rotation.x = -Math.PI / 2;
+targetMark.visible = false;
+scene.add(targetMark);
+
+// Screen point -> walkable ground point, or null when the point is above the horizon.
+function pickGround(sx, sy) {
+  pickRay.setFromCamera(new THREE.Vector2((sx / innerWidth) * 2 - 1, -(sy / innerHeight) * 2 + 1), camera);
+  const hit = pickRay.ray.intersectPlane(ground, new THREE.Vector3());
+  return hit ? game.world.snapOpen(hit.x, hit.z) : null;
+}
 
 scene.add(new THREE.HemisphereLight(0xcfe8ff, 0x3a3348, 1.1));
 const sun = new THREE.DirectionalLight(0xfff1d6, 2.2);
@@ -127,6 +146,7 @@ function startMatch(config) {
   spawnS.forEach((p, i) => { const e = make(true, p, humanSeeker && i === 0); if (!e.human) e.brain = new Brain(game, e, config.level); });
   spawnR.forEach((p, i) => { const e = make(false, p, !humanSeeker && i === 0); if (!e.human) e.brain = new Brain(game, e, config.level); });
   game.player = game.entities.find((e) => e.human);
+  tapState.target = null; tapNav.reset();
 
   game.time = config.duration;
   game.countdown = COUNTDOWN;
@@ -179,8 +199,17 @@ function updateParticles(dt) {
   });
 }
 
+// Walls are taller than every character, so anyone the player has no line of
+// sight to is hidden. The whole arena is revealed once the round ends.
+function visibleToPlayer(e) {
+  const p = game.player;
+  if (!p || e === p || game.state === 'ended') return true;
+  return game.world.sees(p.pos, e.pos);
+}
+
 function playerDirection(e) {
-  const { move } = e.inputCache;
+  const { move, world } = e.inputCache;
+  if (world) return world;
   const f = rig.forward, r = rig.right;
   return { x: f.x * move.y + r.x * move.x, z: f.z * move.y + r.z * move.x, mag: Math.min(1, Math.hypot(move.x, move.y)) };
 }
@@ -256,8 +285,7 @@ function step(dt) {
 
 function freeze(r, by) {
   r.frozen = true; r.thaw = 0; r.vel.x = r.vel.z = 0;
-  burst(r.pos.x, r.pos.z);
-  sfx.freeze();
+  if (visibleToPlayer(r)) { burst(r.pos.x, r.pos.z); sfx.freeze(); }
   if (r.human) toast('You were frozen! Wait for a rescue.', 2200);
   else if (by.human) toast(`Frozen! ${game.entities.filter((e) => !e.seeker && e.frozen).length}/${game.config.runners}`, 1000);
 }
@@ -269,8 +297,7 @@ function updateThaw(dt) {
     f.thaw = helpers ? Math.min(1, f.thaw + dt / THAW_TIME) : Math.max(0, f.thaw - dt * 1.5);
     if (f.thaw >= 1) {
       f.frozen = false; f.thaw = 0; f.grace = GRACE;
-      burst(f.pos.x, f.pos.z, 0xffffff);
-      sfx.thaw();
+      if (visibleToPlayer(f)) { burst(f.pos.x, f.pos.z, 0xffffff); sfx.thaw(); }
       if (f.human) toast('Thawed! Run!', 1500);
     }
   }
@@ -299,6 +326,8 @@ function drawMinimap() {
   mctx.fillStyle = '#9aa7b4';
   for (const w of world.rects) mctx.fillRect((w.minX + HALF) * k, (w.minZ + HALF) * k, w.w * k, w.d * k);
   for (const e of entities) {
+    // Hidden characters stay off the map; frozen runners are always known.
+    if (!e.seen && !(e.frozen && !e.seeker)) continue;
     const x = (e.pos.x + HALF) * k, y = (e.pos.z + HALF) * k;
     mctx.fillStyle = e.frozen ? '#8ff3ff' : e.seeker ? '#ff3b52' : '#ffd23f';
     mctx.beginPath(); mctx.arc(x, y, e.human ? 5 : 3.2, 0, 6.283); mctx.fill();
@@ -326,6 +355,7 @@ function render(dt, cam) {
   const { entities, player, world } = game;
   for (const e of entities) {
     const nearTarget = e.seeker && !e.frozen && entities.some((r) => !r.seeker && !r.frozen && r.grace <= 0 && dist(e, r) < 2.4);
+    e.seen = visibleToPlayer(e);
     e.char.group.position.set(e.pos.x, 0, e.pos.z);
     const celebrating = game.state === 'ended' && e.joyTarget;
     e.char.update(dt, e.vel, { frozen: e.frozen && game.state !== 'ended', thaw: e.thaw, reach: nearTarget && game.countdown <= 0 ? 1 : 0, joy: celebrating ? 1 : 0 });
@@ -334,11 +364,37 @@ function render(dt, cam) {
     e.thawDisc.visible = e.frozen && e.thaw > 0.02;
     if (e.thawDisc.visible) { e.thawDisc.position.set(e.pos.x, 0.04, e.pos.z); e.thawDisc.scale.setScalar(Math.max(0.05, e.thaw)); }
     if (e.arrow) e.arrow.position.set(e.pos.x, 2.5 + Math.sin(performance.now() / 280) * 0.12, e.pos.z);
-    e.char.group.visible = e.grace > 0 ? Math.floor(performance.now() / 90) % 2 === 0 : true;
+    const blink = e.grace > 0 ? Math.floor(performance.now() / 90) % 2 === 0 : true;
+    e.char.group.visible = e.seen && blink;
+    e.mark.visible = e.seen;
+    if (!e.seen) e.thawDisc.visible = false;
   }
   updateParticles(dt);
   if (cam && player) rig.update(dt, player.pos, player.vel, player.char.yaw, world);
   renderer.render(scene, camera);
+}
+
+// Click / tap to move. Returns a world-space direction for the player, or null.
+function tapControl(poll, dt) {
+  const p = game.player;
+  if (settings.scheme !== 'tap') { tapState.target = null; targetMark.visible = false; return null; }
+  if (Math.hypot(poll.move.x, poll.move.y) > 0.1) tapState.target = null; // keyboard / gamepad take over
+  else {
+    const pt = poll.aim ?? poll.tap;
+    const g = pt && pickGround(pt.x, pt.y);
+    if (g) { tapState.target = g; tapState.stuck = 0; }
+  }
+  const target = tapState.target;
+  targetMark.visible = !!target;
+  if (!target || p.frozen) return null;
+  const d = Math.hypot(target.x - p.pos.x, target.z - p.pos.z);
+  const dir = tapNav.steer(game.world, p.pos, target, dt);
+  const speed = Math.hypot(p.vel.x, p.vel.z);
+  tapState.stuck = speed < 0.3 && d > 1 ? tapState.stuck + dt : 0;
+  if (d < 0.35 || (dir.x === 0 && dir.z === 0) || tapState.stuck > 0.7) { tapState.target = null; targetMark.visible = false; return null; }
+  targetMark.position.set(target.x, 0.05, target.z);
+  targetMark.scale.setScalar(1 + Math.sin(performance.now() / 160) * 0.12);
+  return { x: dir.x, z: dir.z, mag: Math.max(0.4, Math.min(1, d / 1.2)) };
 }
 
 // ---- main loop -----------------------------------------------------------------
@@ -354,10 +410,12 @@ function frame(now) {
   }
   const poll = input.poll(dt);
   if (game.state !== 'paused') {
-    rig.rotate(poll.yaw, poll.pitch);
+    // In follow mode the camera turns with the character, so only tilt and zoom are manual.
+    rig.rotate(settings.camera === 'follow' ? 0 : poll.yaw, poll.pitch);
     rig.zoom(poll.zoom);
   }
   if (game.state === 'playing') {
+    poll.world = tapControl(poll, dt);
     game.player.inputCache = poll;
     acc += dt;
     while (acc >= 1 / 60) { step(1 / 60); acc -= 1 / 60; if (game.state !== 'playing') break; }
@@ -391,8 +449,32 @@ $('pause').addEventListener('click', () => pause(true));
 $('auto-cam').addEventListener('click', (e) => {
   rig.autoFollow = !rig.autoFollow;
   e.currentTarget.setAttribute('aria-pressed', String(rig.autoFollow));
-  e.currentTarget.textContent = `Auto camera: ${rig.autoFollow ? 'on' : 'off'}`;
+  e.currentTarget.textContent = `Auto-recentre: ${rig.autoFollow ? 'on' : 'off'}`;
 });
+
+const HINTS = {
+  direct: { separate: 'WASD move · drag / Q E look · wheel zoom · Esc pause', follow: 'WASD move · camera turns with you · wheel zoom · Esc pause' },
+  tap: { separate: 'Click to move (hold to steer) · right-drag / Q E look · wheel zoom · Esc pause', follow: 'Click to move (hold to steer) · camera turns with you · Esc pause' },
+};
+function applySettings() {
+  if (input.scheme !== settings.scheme) input.setScheme(settings.scheme);
+  rig.mode = settings.camera;
+  document.body.dataset.scheme = settings.scheme;
+  document.body.dataset.camera = settings.camera;
+  for (const id of ['opt-scheme', 'pause-scheme']) $(id).value = settings.scheme;
+  for (const id of ['opt-camera', 'pause-camera']) $(id).value = settings.camera;
+  $('hint').textContent = HINTS[settings.scheme][settings.camera];
+  localStorage.setItem('ft3d-settings', JSON.stringify(settings));
+}
+for (const id of ['opt-scheme', 'pause-scheme']) $(id).addEventListener('change', (e) => { settings.scheme = e.target.value; applySettings(); });
+for (const id of ['opt-camera', 'pause-camera']) $(id).addEventListener('change', (e) => { settings.camera = e.target.value; applySettings(); });
+// On-screen camera turn buttons (tap scheme on touch devices) feed the same Q / E keys.
+for (const [id, code] of [['cam-left', 'KeyQ'], ['cam-right', 'KeyE']]) {
+  const b = $(id);
+  b.addEventListener('pointerdown', (e) => { b.setPointerCapture(e.pointerId); input.keys.add(code); });
+  for (const t of ['pointerup', 'pointercancel']) b.addEventListener(t, () => input.keys.delete(code));
+}
+applySettings();
 $('sound').addEventListener('click', (e) => {
   const on = sfx.toggle();
   e.currentTarget.textContent = `Sound: ${on ? 'on' : 'off'}`;
@@ -420,3 +502,4 @@ for (const [k, l] of Object.entries(LEVELS)) $('opt-level').add(new Option(l.lab
 }
 requestAnimationFrame(frame);
 window.__game = game;
+window.__rig = rig;

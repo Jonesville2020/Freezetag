@@ -16,7 +16,8 @@ export class ChaseCamera {
     this.focus = new THREE.Vector3();
     this.lookAhead = new THREE.Vector3();
     this.idle = 0;             // seconds since last manual rotation
-    this.autoFollow = true;
+    this.autoFollow = true;    // separate mode: recentre after idling
+    this.mode = 'separate';    // 'separate' | 'follow'
     this.ray = new THREE.Raycaster();
     this.snap = true;
   }
@@ -37,8 +38,14 @@ export class ChaseCamera {
     this.idle += dt;
     const speed = Math.hypot(vel.x, vel.z);
 
-    // Ease behind the runner's heading when the player is not steering the camera.
-    if (this.autoFollow && this.idle > 1.0 && speed > 1.5) {
+    if (this.mode === 'follow') {
+      // Turn with the character. Backing up (nearly 180° off) is ignored so the camera does not spin around.
+      if (speed > 0.8) {
+        const d = angleDelta(this.yaw, heading + Math.PI);
+        if (Math.abs(d) < 2.4) this.yaw += d * (1 - Math.exp(-4.5 * dt));
+      }
+    } else if (this.autoFollow && this.idle > 1.0 && speed > 1.5) {
+      // Separate mode: ease behind the runner only after the player stops steering.
       const want = Math.atan2(-vel.x, -vel.z);
       const d = angleDelta(this.yaw, want);
       if (Math.abs(d) < 2.2) this.yaw += d * (1 - Math.exp(-0.9 * dt));

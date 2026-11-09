@@ -41,3 +41,7 @@ button.primary { background:var(--cyan); color:#04202a; border:0; font-weight:80
 .card-dialog { position:fixed; inset:0; z-index:20; background:#0b1320aa; margin:0; }
 .actions { display:flex; gap:10px; flex-wrap:wrap; margin-top:14px; }
 .actions button { flex:1; }
+
+.cam-btn { position:absolute; bottom:calc(20px + env(safe-area-inset-bottom)); width:56px; height:56px; border-radius:50%; font-size:26px; padding:0; display:none; pointer-events:auto; touch-action:none; background:#0b1320cc; }
+.cam-btn.left { right:170px; } .cam-btn.right { right:228px; }
+@media (pointer:coarse) { body[data-scheme="tap"][data-camera="separate"] .cam-btn { display:block; } }
