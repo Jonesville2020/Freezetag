@@ -24,7 +24,7 @@ export class Brain {
     const e = this.e;
     const d = dist(e.pos, o.pos);
     if (d > range) return false;
-    return d < 3.5 || this.g.world.sees(e.pos, o.pos);
+    return this.g.world.sees(e.pos, o.pos);
   }
 
   // Returns a unit-length (or zero) direction in world space.

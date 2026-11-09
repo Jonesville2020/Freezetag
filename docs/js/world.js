@@ -37,7 +37,7 @@ export const LAYOUTS = [
 
 export class World {
   constructor(layoutIndex) {
-    this.layout = LAYOUTS[layoutIndex % LAYOUTS.length];
+    this.layout = typeof layoutIndex === 'number' ? LAYOUTS[layoutIndex % LAYOUTS.length] : layoutIndex;
     this.rects = this.layout.walls.map(([x, z, w, d]) => ({
       minX: x - w / 2, maxX: x + w / 2, minZ: z - d / 2, maxZ: z + d / 2, x, z, w, d,
     }));

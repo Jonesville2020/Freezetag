@@ -20,6 +20,7 @@ export class ChaseCamera {
     this.mode = 'separate';    // 'separate' | 'follow'
     this.ray = new THREE.Raycaster();
     this.snap = true;
+    this.fade = new Map();     // wall mesh -> opacity for this view (walls are shared between split-screen views)
   }
 
   rotate(dYaw, dPitch) {
@@ -81,6 +82,17 @@ export class ChaseCamera {
     this.camera.updateProjectionMatrix();
 
     this.#fadeWalls(dt, world, target);
+    this.applyFade(world);
+  }
+
+  // Write this view's wall opacities onto the shared materials; call right before rendering the view.
+  applyFade(world) {
+    for (const m of world.wallMeshes) {
+      const next = this.fade.get(m) ?? 1;
+      m.material.opacity = next;
+      m.children[0].material.opacity = next;
+      m.material.depthWrite = next > 0.95;
+    }
   }
 
   #fadeWalls(dt, world, target) {
@@ -96,11 +108,7 @@ export class ChaseCamera {
       const b = m.userData.bounds;
       const lensInside = cam.x > b.minX - 0.8 && cam.x < b.maxX + 0.8 && cam.z > b.minZ - 0.8 && cam.z < b.maxZ + 0.8 && cam.y < m.userData.h + 0.8;
       const want = hit.has(m) || lensInside ? 0.16 : 1;
-      const cur = m.material.opacity;
-      const next = damp(cur, want, 10, dt);
-      m.material.opacity = next;
-      m.children[0].material.opacity = next;
-      m.material.depthWrite = next > 0.95;
+      this.fade.set(m, damp(this.fade.get(m) ?? 1, want, 10, dt));
     }
   }
 }

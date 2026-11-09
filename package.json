@@ -2,8 +2,10 @@
   "name": "freeze-tag-3d",
   "version": "1.0.0",
   "private": true,
+  "type": "module",
   "scripts": {
-    "start": "python3 -m http.server 8000 --directory docs"
+    "start": "python3 -m http.server 8000 --directory docs",
+    "test": "node --test tests/*.test.mjs"
   },
   "dependencies": {
     "three": "^0.170.0"
