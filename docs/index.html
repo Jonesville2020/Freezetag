@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#0b1320">
 <title>Freeze Tag 3D</title>
-<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="style.css?v=character-studio">
 <script type="importmap">{"imports":{"three":"./vendor/three.module.min.js"}}</script>
 </head>
 <body>
@@ -50,9 +50,30 @@
       <label class="solo-only">Camera<select id="opt-camera"><option value="separate">Separate (you steer it)</option><option value="follow">Follows your character</option></select></label>
     </div>
     <div class="split-only" id="menu-split" hidden><p class="small">Each player has their own view. P1 uses WASD, P2 the arrow keys, P3/P4 controllers; any player can use touch on their own screen.</p></div>
+    <details class="studio">
+      <summary>Character studio <span>Make your own look</span></summary>
+      <div class="studio-content">
+        <canvas id="character-preview" width="230" height="190" aria-label="Character preview"></canvas>
+        <div class="studio-controls">
+          <label>Editing<select id="appearance-player"><option value="0">Player 1</option></select></label>
+          <label>Hair / hat<select id="appearance-style"><option value="short">Short hair</option><option value="bun">Bun</option><option value="cap">Cap</option><option value="beanie">Beanie</option><option value="none">Bald</option></select></label>
+          <div class="color-grid">
+            <label>Skin<input type="color" id="appearance-skin"></label>
+            <label>Hair<input type="color" id="appearance-hair"></label>
+            <label>Shirt<input type="color" id="appearance-shirt"></label>
+            <label>Pants<input type="color" id="appearance-pants"></label>
+            <label>Shoes<input type="color" id="appearance-shoe"></label>
+            <label>Hat<input type="color" id="appearance-accent"></label>
+          </div>
+          <button type="button" class="secondary" id="appearance-reset">Reset look</button>
+        </div>
+      </div>
+      <p class="small">Looks are saved on this device for each player. Team markers show who is IT.</p>
+    </details>
     <label class="check" id="rescue-option"><input type="checkbox" id="opt-rescue" checked><span>Runners can thaw frozen teammates (stay close for 1 second)</span></label>
     <button id="start" class="primary">Enter the arena →</button>
     <p class="small" id="mode-help">Tag by touching. Move with WASD / arrows, left-thumb joystick or a gamepad. Rotate the camera by dragging, Q/E, or the right stick.</p>
+    <p class="small">In tap / click mode, hold your finger in the direction you want to move; lift it to stop. Tap briefly to move to a spot.</p>
   </form>
 </section>
 
@@ -79,6 +100,6 @@
     <div class="actions"><button id="result-menu" class="secondary">Match setup</button><button id="next-round" class="primary" hidden>Next round →</button><button id="replay" class="primary">Play again →</button></div>
   </div>
 </section>
-<script type="module" src="js/main.js"></script>
+<script type="module" src="js/main.js?v=character-studio"></script>
 </body>
 </html>

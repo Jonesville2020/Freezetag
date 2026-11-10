@@ -23,6 +23,23 @@ const HAIR = [0x2b1b12, 0x6b3f1f, 0xd9b36a, 0x1a1a22, 0xb23a2e, 0x5b7fe0];
 export const RUNNER_COLORS = [0x3da9fc, 0x59d98e, 0xffc542, 0xb27cff, 0xff8fb1, 0x2ec4b6, 0xff9f43, 0x8fd14f];
 export const SEEKER_COLOR = 0xe5384c;
 
+export const DEFAULT_APPEARANCE = {
+  skin: '#d9a47c', hair: '#2b1b12', shirt: '#3da9fc',
+  pants: '#24303f', shoe: '#f4f4f4', accent: '#ff9f43', style: 'short',
+};
+export const HAIR_STYLES = ['short', 'bun', 'cap', 'beanie', 'none'];
+
+export function normalizeAppearance(value = {}) {
+  if (!value || typeof value !== 'object') value = {};
+  const result = {};
+  for (const [key, fallback] of Object.entries(DEFAULT_APPEARANCE)) {
+    result[key] = key === 'style'
+      ? (HAIR_STYLES.includes(value[key]) ? value[key] : fallback)
+      : (typeof value[key] === 'string' && /^#[0-9a-f]{6}$/i.test(value[key]) ? value[key] : fallback);
+  }
+  return result;
+}
+
 function mulberry(a) {
   return () => {
     a |= 0; a = (a + 0x6d2b79f5) | 0;
@@ -36,9 +53,10 @@ function mulberry(a) {
 // forward with negative rotation.x, and a knee/elbow bends with the shin/forearm
 // going back/forward respectively.
 export class Character {
-  constructor({ seed = 0, seeker = false, shirt } = {}) {
+  constructor({ seed = 0, seeker = false, shirt, appearance } = {}) {
     this.group = new THREE.Group();
     this.seeker = seeker;
+    this.custom = Boolean(appearance);
     const rng = mulberry(seed * 9973 + 17);
     const pick = (a) => a[Math.floor(rng() * a.length)];
     this.mats = {
@@ -50,7 +68,13 @@ export class Character {
       accent: new THREE.MeshStandardMaterial({ color: pick(RUNNER_COLORS), roughness: 0.7 }),
       eye: new THREE.MeshStandardMaterial({ color: 0x15151c, roughness: 0.3 }),
     };
-    this.#build(seeker ? 'cap' : pick(['short', 'cap', 'beanie', 'bun']));
+    if (appearance) {
+      const look = normalizeAppearance(appearance);
+      for (const key of ['skin', 'hair', 'shirt', 'pants', 'shoe', 'accent']) this.mats[key].color.set(look[key]);
+      this.#build(look.style);
+    } else {
+      this.#build(seeker ? 'cap' : pick(['short', 'cap', 'beanie', 'bun']));
+    }
     this.group.scale.setScalar(0.92);
     this.group.traverse((o) => { if (o.isMesh && o !== this.ice) o.castShadow = true; });
 
@@ -124,7 +148,7 @@ export class Character {
 
   #headgear(head, style) {
     const { hair, accent } = this.mats;
-    const paint = this.seeker ? this.mats.shirt : accent;
+    const paint = this.seeker && !this.custom ? this.mats.shirt : accent;
     if (style === 'short') {
       this.#mesh(geo.dome, hair, head, 0, 0.02, -0.01);
     } else if (style === 'cap') {
@@ -132,7 +156,7 @@ export class Character {
       this.#mesh(geo.brim, paint, head, 0, 0.1, 0.2);
     } else if (style === 'beanie') {
       this.#mesh(geo.dome, paint, head, 0, 0.04, 0).scale.set(1.04, 1.1, 1.04);
-    } else {
+    } else if (style === 'bun') {
       this.#mesh(geo.dome, hair, head, 0, 0.02, -0.01);
       this.#mesh(geo.bun, hair, head, 0, 0.24, -0.06);
     }

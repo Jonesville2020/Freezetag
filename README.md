@@ -17,12 +17,14 @@ Run: `npm start`, then open http://localhost:8000 (needs an HTTP server because 
 
 Local play supports 1–4 players on one device, with separate views and independent line of sight. Choose each player's controls and screen position in setup or pause. Freeze Tag also lets players choose different sides. P1 uses WASD and P2 uses arrows; P3/P4 use touch or controllers. In 3–4-player games, the first controllers are assigned to P3/P4 first, then P1/P2. Two-player games assign them to P1/P2 in order. Connect or activate controllers before the match; controller hardware behavior depends on the device/browser.
 
+Open **Character studio** in match setup to choose a hair or hat style and colors for skin, hair, shirt, pants, shoes and hat. Each local player's look is saved on the device and stays the same when their role changes.
+
 Controls (change in Match setup or the pause menu; saved on the device):
 - **Movement: Joystick · WASD · gamepad** — WASD/arrows, left-thumb floating joystick, or controller. Drag, Q/E or right stick rotate the camera.
-- **Movement: Tap / click to move** — tap or click a spot to walk there; hold to steer toward your finger/cursor. Rotate with right-drag (mouse), two-finger drag (touch) or the on-screen ⟲ ⟳ buttons; pinch or wheel to zoom. Keyboard/gamepad still work and cancel the destination.
+- **Movement: Tap / click to move** — tap or click a spot to walk there. Hold a finger on the screen to keep moving in that direction relative to your character; lift it to stop. Rotate with right-drag (mouse), two-finger drag (touch) or the on-screen ⟲ ⟳ buttons; pinch or wheel to zoom. Keyboard/gamepad still work and cancel the destination.
 - **Camera: Separate** — you steer the camera (it eases behind you when idle; toggle in pause menu). **Camera: Follows your character** — the camera turns whenever your character turns.
 - Wheel, `-`/`=` zoom; Esc/P pause.
 
 Vision: walls are taller than characters, so anyone you have no line of sight to is hidden in the arena and on the minimap (frozen runners are always shown on the minimap). Everything is revealed when the round ends.
 
-The maze minimap is explored independently by each player. This 3D version does not yet include the original maze replay codes, online lobbies, campaign, wardrobe, or music.
+The maze camera stays below wall height and moves in front of obstructing walls; its height and zoom are fixed during maze play. The maze minimap is explored independently by each player. This 3D version does not yet include the original maze replay codes, online lobbies, campaign, original wardrobe, or music.

@@ -1,14 +1,16 @@
 import * as THREE from 'three';
 import { World, LAYOUTS, SIZE, HALF } from './world.js';
-import { Character, RUNNER_COLORS, SEEKER_COLOR } from './character.js';
-import { ChaseCamera } from './camera.js';
-import { Input } from './input.js';
+import { Character, RUNNER_COLORS, SEEKER_COLOR, normalizeAppearance } from './character.js?v=character-studio';
+import { CharacterStudio } from './studio.js?v=character-studio';
+import { ChaseCamera } from './camera.js?v=character-studio';
+import { Input } from './input.js?v=character-studio';
 import { Brain, LEVELS } from './ai.js';
 import { Sfx } from './sfx.js';
 import { Navigator } from './nav.js';
 import { MAX_PLAYERS, keymapFor, playerRects, slotLabels, assignSlot, normalizeSlots } from './splitscreen.js';
 import { createMaze } from './maze-mode.js';
 import { createSeries, startSeriesRound, updateSeries, seriesTag, standings, seriesLeaders } from './modes.js';
+import { holdDirection } from './steering.js';
 
 const $ = (id) => document.getElementById(id);
 const SEEKER_SPEED = 6.6, RUNNER_SPEED = 6.0, RADIUS = 0.45, TAG_RANGE = 1.0;
@@ -28,6 +30,7 @@ const settings = {
   scheme: 'direct', camera: 'separate', ...stored,
   // Split screen keeps its own per-player controls so solo settings are untouched.
   players: Array.from({ length: MAX_PLAYERS }, (_, i) => ({ scheme: 'direct', camera: 'separate', ...stored.players?.[i] })),
+  appearances: Array.from({ length: MAX_PLAYERS }, (_, i) => normalizeAppearance(stored.appearances?.[i])),
   slots: normalizeSlots(stored.slots, MAX_PLAYERS),
 };
 const PLAYER_COLORS = [0xffffff, 0xffd23f, 0x7dff8a, 0xff7bf0];
@@ -203,15 +206,15 @@ function startMatch(config) {
     spawnR.push(p);
   }
   let id = 0;
-  const make = (seeker, p, human) => {
-    const char = new Character({ seed: id + 1, seeker });
+  const make = (seeker, p, human, playerIndex = 0) => {
+    const char = new Character({ seed: id + 1, seeker, appearance: human ? settings.appearances[playerIndex] : undefined });
     char.group.position.set(p.x, 0, p.z);
     char.yaw = seeker ? 0 : Math.random() * Math.PI * 2;
     const e = {
       id: id++, seeker, human, pos: { x: p.x, z: p.z }, vel: { x: 0, z: 0 },
       char, frozen: false, thaw: 0, grace: 0, brain: null, reach: 0,
     };
-    e.runnerColor = seeker ? RUNNER_COLORS[e.id % RUNNER_COLORS.length] : char.mats.shirt.color.getHex();
+    e.runnerColor = human || !seeker ? char.mats.shirt.color.getHex() : RUNNER_COLORS[e.id % RUNNER_COLORS.length];
     group.add(char.group);
     // Blob marker under each character; the human player gets a brighter ring and arrow.
     const mark = new THREE.Mesh(new THREE.CircleGeometry(human ? 0.95 : 0.7, 32),
@@ -234,7 +237,7 @@ function startMatch(config) {
   const humans = roles.map((role, i) => {
     const seeker = role === 'seeker';
     const pos = game.maze ? { x: game.maze.start.x + (i % 2) * 1.1, z: game.maze.start.z + Math.floor(i / 2) * 1.1 } : seeker ? spawnS[si++] : spawnR[ri++];
-    return make(seeker, pos, true);
+    return make(seeker, pos, true, i);
   });
   while (si < spawnS.length) {
     const e = make(true, spawnS[si++], false);
@@ -266,7 +269,7 @@ function startMatch(config) {
   game.time = game.series?.duration ?? config.duration;
   game.countdown = COUNTDOWN;
   game.state = 'playing';
-  for (const p of players) { p.rig.snap = true; p.rig.yaw = Math.PI; p.rig.idle = 0; }
+  for (const p of players) { p.rig.snap = true; p.rig.yaw = Math.PI; p.rig.idle = 0; p.rig.maze = Boolean(game.maze); }
   applySettings();
   $('menu').hidden = true;
   $('result').hidden = true;
@@ -468,8 +471,12 @@ function updateThaw(dt) {
 }
 
 function updateRoleAppearance(e) {
-  e.char.mats.shirt.color.setHex(e.seeker ? SEEKER_COLOR : e.runnerColor);
+  e.char.mats.shirt.color.setHex(e.human ? e.runnerColor : e.seeker ? SEEKER_COLOR : e.runnerColor);
   if (!e.human) e.mark.material.color.setHex(e.seeker ? 0xff3b52 : 0x64e5ff);
+  else if (players.length === 1) {
+    e.mark.material.color.setHex(e.seeker ? 0xff3b52 : 0xffffff);
+    e.arrow.material.color.setHex(e.seeker ? 0xff3b52 : 0xffffff);
+  }
 }
 
 function playerName(e) {
@@ -665,7 +672,8 @@ function drawViews() {
     const idx = p.index;
     for (const e of game.entities) {
       const vis = !!e.seenBy?.[idx];
-      e.char.group.visible = vis && e.blink;
+      const cameraClose = game.maze && e === p.ent && p.camera.position.distanceTo(new THREE.Vector3(e.pos.x, 1.65, e.pos.z)) < 1;
+      e.char.group.visible = vis && e.blink && !cameraClose;
       e.mark.visible = vis;
       e.thawDisc.visible = vis && e.thawOn;
       if (e.arrow) e.arrow.visible = vis;
@@ -685,6 +693,15 @@ function drawViews() {
 function tapControl(p, poll, dt) {
   const e = p.ent;
   if (p.scheme !== 'tap') { p.tap.target = null; p.markOn = false; return null; }
+  if (poll.touching) {
+    p.tap.target = null;
+    p.markOn = false;
+    if (!poll.aim?.touch || e.frozen || e.escaped || e.gaveUp) return null;
+    const r = p.rect;
+    const projected = new THREE.Vector3(e.pos.x, 0.9, e.pos.z).project(p.camera);
+    const character = { x: r.x + (projected.x + 1) * r.w / 2, y: r.y + (1 - projected.y) * r.h / 2 };
+    return holdDirection(poll.aim, character, p.rig.forward, p.rig.right);
+  }
   if (Math.hypot(poll.move.x, poll.move.y) > 0.1) p.tap.target = null; // keyboard / gamepad take over
   else {
     const pt = poll.aim ?? poll.tap;
@@ -779,6 +796,42 @@ const keyHint = (i, n) => (n === 1 ? '' : i === 0 ? 'WASD' : i === 1 ? 'Arrows' 
 // Per-player control rows (movement, camera, screen position) for the menu and pause dialogs.
 const SCHEMES = [['direct', 'Joystick · keys · gamepad'], ['tap', 'Tap / click to move']];
 const CAMERAS = [['separate', 'Camera: you steer'], ['follow', 'Camera: follows you']];
+const appearanceKeys = ['skin', 'hair', 'shirt', 'pants', 'shoe', 'accent', 'style'];
+let studio;
+function showAppearance() {
+  const index = +$('appearance-player').value;
+  const appearance = settings.appearances[index];
+  for (const key of appearanceKeys) $(`appearance-${key}`).value = appearance[key];
+  if (studio) studio.show(appearance);
+}
+function updateAppearancePlayers() {
+  const select = $('appearance-player');
+  const selected = Math.min(+select.value, +$('opt-players').value - 1);
+  select.length = 0;
+  for (let i = 0; i < +$('opt-players').value; i++) select.add(new Option(`Player ${i + 1}`, i));
+  select.value = String(selected);
+  showAppearance();
+}
+$('appearance-player').addEventListener('change', showAppearance);
+document.querySelector('.studio').addEventListener('toggle', (event) => {
+  if (event.currentTarget.open && !studio) {
+    studio = new CharacterStudio($('character-preview'));
+    showAppearance();
+  }
+});
+for (const key of appearanceKeys) {
+  $(`appearance-${key}`).addEventListener('input', (event) => {
+    const index = +$('appearance-player').value;
+    settings.appearances[index] = normalizeAppearance({ ...settings.appearances[index], [key]: event.target.value });
+    localStorage.setItem('ft3d-settings', JSON.stringify(settings));
+    showAppearance();
+  });
+}
+$('appearance-reset').addEventListener('click', () => {
+  settings.appearances[+$('appearance-player').value] = normalizeAppearance();
+  localStorage.setItem('ft3d-settings', JSON.stringify(settings));
+  showAppearance();
+});
 const splitRows = ['menu-split', 'pause-split'].map((id) => {
   const box = $(id);
   return pool.map((p, i) => {
@@ -857,7 +910,7 @@ function updateModeOptions() {
     : 'Tag by touching. Walls block sight. Rescue frozen teammates by staying nearby.';
 }
 $('opt-mode').addEventListener('change', updateModeOptions);
-$('opt-players').addEventListener('change', () => { updateModeOptions(); applySettings(); });
+$('opt-players').addEventListener('change', () => { updateModeOptions(); updateAppearancePlayers(); applySettings(); });
 // On-screen camera turn buttons (tap scheme on touch devices) feed the same actions as Q / E.
 for (const [id, act] of [['cam-left', 'yawL'], ['cam-right', 'yawR']]) {
   const b = $(id);
@@ -866,6 +919,7 @@ for (const [id, act] of [['cam-left', 'yawL'], ['cam-right', 'yawR']]) {
 }
 applySettings();
 updateModeOptions();
+updateAppearancePlayers();
 $('sound').addEventListener('click', (e) => {
   const on = sfx.toggle();
   e.currentTarget.textContent = `Sound: ${on ? 'on' : 'off'}`;

@@ -54,3 +54,22 @@ test('Input only reacts to its own keys and region', async () => {
   for (const f of listeners.keydown) f({ code: 'ArrowUp', target: {}, preventDefault() {} });
   assert.equal(b.keys.has('ArrowUp'), false);
 });
+
+test('touch cancellation never creates a tap destination', async () => {
+  const callbacks = {};
+  globalThis.addEventListener = () => {};
+  globalThis.innerWidth = 800;
+  Object.defineProperty(globalThis, 'navigator', { value: { getGamepads: () => [] }, configurable: true });
+  const { Input } = await import('../docs/js/input.js');
+  const canvas = { addEventListener(type, cb) { callbacks[type] = cb; }, setPointerCapture() {} };
+  const el = { style: {} };
+  const input = new Input(canvas, el, el);
+  input.setScheme('tap');
+  const event = { pointerId: 1, pointerType: 'touch', clientX: 100, clientY: 100 };
+  callbacks.pointerdown(event);
+  assert.equal(input.poll(0.016).touching, true);
+  callbacks.pointercancel({ ...event, type: 'pointercancel' });
+  const result = input.poll(0.016);
+  assert.equal(result.touching, false);
+  assert.equal(result.tap, null);
+});

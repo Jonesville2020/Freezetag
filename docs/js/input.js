@@ -145,7 +145,7 @@ export class Input {
     this.pointers.delete(e.pointerId);
     if (!p) return;
     if (p.role === 'stick') this.#resetStick();
-    if (p.role === 'pending' && performance.now() - p.t < TAP_MS && Math.hypot(p.x - p.ox, p.y - p.oy) < TAP_SLOP) {
+    if (e.type !== 'pointercancel' && p.role === 'pending' && performance.now() - p.t < TAP_MS && Math.hypot(p.x - p.ox, p.y - p.oy) < TAP_SLOP) {
       this.tapQueue = { x: p.x, y: p.y };
     }
     if (this.#touches().length < 2) this.gesture = null;
@@ -189,10 +189,11 @@ export class Input {
     const now = performance.now();
     for (const p of this.pointers.values()) {
       if (p.role === 'pending' && now - p.t > HOLD_MS) p.role = 'aim';
-      if (p.role === 'aim') aim = { x: p.x, y: p.y };
+      if (p.role === 'aim') aim = { x: p.x, y: p.y, touch: p.touch };
     }
     const tap = this.tapQueue;
     this.tapQueue = null;
-    return { move: { x: clamp(x, -1, 1), y: clamp(y, -1, 1) }, yaw, pitch, zoom, aim, tap };
+    const touching = [...this.pointers.values()].some((p) => p.touch && (p.role === 'pending' || p.role === 'aim' || p.role === 'gesture'));
+    return { move: { x: clamp(x, -1, 1), y: clamp(y, -1, 1) }, yaw, pitch, zoom, aim, tap, touching };
   }
 }

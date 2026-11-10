@@ -5,6 +5,30 @@ const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const damp = (cur, target, rate, dt) => cur + (target - cur) * (1 - Math.exp(-rate * dt));
 const angleDelta = (a, b) => Math.atan2(Math.sin(b - a), Math.cos(b - a));
 
+// Clamp the camera's ground-plane segment before it enters any maze wall.
+export function mazeCameraFraction(start, end, rects, padding = 0.25) {
+  let closest = 1;
+  for (const w of rects) {
+    let enter = 0, exit = 1;
+    for (const [origin, delta, low, high] of [
+      [start.x, end.x - start.x, w.minX - padding, w.maxX + padding],
+      [start.z, end.z - start.z, w.minZ - padding, w.maxZ + padding],
+    ]) {
+      if (Math.abs(delta) < 1e-9) {
+        if (origin < low || origin > high) { enter = 2; break; }
+      } else {
+        let a = (low - origin) / delta, b = (high - origin) / delta;
+        if (a > b) [a, b] = [b, a];
+        enter = Math.max(enter, a);
+        exit = Math.min(exit, b);
+        if (enter > exit) break;
+      }
+    }
+    if (enter <= exit) closest = Math.min(closest, Math.max(0, enter - 0.02));
+  }
+  return closest;
+}
+
 // Third-person orbit camera: smooth follow, velocity look-ahead, speed FOV,
 // arena-bounds clamp, and fading of any wall between the lens and the player.
 export class ChaseCamera {
@@ -21,6 +45,7 @@ export class ChaseCamera {
     this.ray = new THREE.Raycaster();
     this.snap = true;
     this.fade = new Map();     // wall mesh -> opacity for this view (walls are shared between split-screen views)
+    this.maze = false;
   }
 
   rotate(dYaw, dPitch) {
@@ -52,6 +77,22 @@ export class ChaseCamera {
       if (Math.abs(d) < 2.2) this.yaw += d * (1 - Math.exp(-0.9 * dt));
     }
 
+    if (this.maze) {
+      const start = { x: target.x, z: target.z };
+      const end = { x: target.x + Math.sin(this.yaw) * 3.5, z: target.z + Math.cos(this.yaw) * 3.5 };
+      const fraction = mazeCameraFraction(start, end, world.rects);
+      this.camera.position.set(start.x + (end.x - start.x) * fraction, 1.65, start.z + (end.z - start.z) * fraction);
+      this.focus.set(target.x, 1.25, target.z);
+      this.camera.lookAt(this.focus);
+      this.camera.near = 0.05;
+      this.camera.fov = 65;
+      this.camera.updateProjectionMatrix();
+      this.fade.clear();
+      this.applyFade(world);
+      return;
+    }
+
+    this.camera.near = 0.1;
     const la = Math.min(1.6, speed * 0.25);
     const lx = speed > 0.1 ? (vel.x / speed) * la : 0, lz = speed > 0.1 ? (vel.z / speed) * la : 0;
     this.lookAhead.x = damp(this.lookAhead.x, lx, 3, dt);
