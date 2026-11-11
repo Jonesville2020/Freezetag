@@ -17,6 +17,10 @@ Run: `npm start`, then open http://localhost:8000 (needs an HTTP server because 
 
 Local play supports 1–4 players on one device, with separate views and independent line of sight. Choose each player's controls and screen position in setup or pause. Freeze Tag also lets players choose different sides. P1 uses WASD and P2 uses arrows; P3/P4 use touch or controllers. In 3–4-player games, the first controllers are assigned to P3/P4 first, then P1/P2. Two-player games assign them to P1/P2 in order. Connect or activate controllers before the match; controller hardware behavior depends on the device/browser.
 
+The home menu offers **Quick play**, which chooses a random mode and match options using the current player count, or **Choose game & players** for match setup. Standard gamepads can navigate menus with the left stick or D-pad, select with A, go back with B or Start, and change settings with left/right. Start pauses a match; the pause menu includes individual give-up buttons in Maze Dash.
+
+**Settings** provides independent music and effects volume sliders, saved on the device. Character reactions are synthesized along with other effects. Some browsers require a screen tap or keyboard press to enable audio, even when using a controller.
+
 Open **Character studio** in match setup to choose a hair or hat style and colors for skin, hair, shirt, pants, shoes and hat. Each local player's look is saved on the device and stays the same when their role changes.
 
 Controls (change in Match setup or the pause menu; saved on the device):
@@ -27,4 +31,4 @@ Controls (change in Match setup or the pause menu; saved on the device):
 
 Vision: walls are taller than characters, so anyone you have no line of sight to is hidden in the arena and on the minimap (frozen runners are always shown on the minimap). Everything is revealed when the round ends.
 
-The maze camera stays below wall height and moves in front of obstructing walls; its height and zoom are fixed during maze play. The maze minimap is explored independently by each player. This 3D version does not yet include the original maze replay codes, online lobbies, campaign, original wardrobe, or music.
+The maze camera stays below wall height and moves in front of obstructing walls; its height and zoom are fixed during maze play. The maze minimap is explored independently by each player. This 3D version does not yet include the original maze replay codes, online lobbies, campaign, or original wardrobe.

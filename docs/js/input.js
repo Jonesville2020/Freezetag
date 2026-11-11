@@ -157,7 +157,7 @@ export class Input {
   }
 
   // move: { x right, y forward } (length ≤ 1). aim: screen point being held (tap scheme). tap: one-shot screen point.
-  poll(dt) {
+  poll(dt, allowPause = true) {
     const a = (n) => (this.#act(n) ? 1 : 0);
     let x = a('right') - a('left');
     let y = a('up') - a('down');
@@ -173,15 +173,15 @@ export class Input {
 
     const pad = padFor(navigator.getGamepads?.(), this.slot, this.count);
     if (pad) {
-      x += dz(pad.axes[0]) + ((pad.buttons[15]?.pressed ? 1 : 0) - (pad.buttons[14]?.pressed ? 1 : 0));
-      y += -dz(pad.axes[1]) + ((pad.buttons[12]?.pressed ? 1 : 0) - (pad.buttons[13]?.pressed ? 1 : 0));
+      x += dz(pad.axes[0] ?? 0) + ((pad.buttons[15]?.pressed ? 1 : 0) - (pad.buttons[14]?.pressed ? 1 : 0));
+      y += -dz(pad.axes[1] ?? 0) + ((pad.buttons[12]?.pressed ? 1 : 0) - (pad.buttons[13]?.pressed ? 1 : 0));
       yaw -= dz(pad.axes[2] ?? 0) * 2.6 * dt;
       pitch += dz(pad.axes[3] ?? 0) * 1.6 * dt;
       zoom += ((pad.buttons[6]?.value ?? 0) - (pad.buttons[7]?.value ?? 0)) * 8 * dt;
       const start = !!pad.buttons[9]?.pressed;
-      if (start && !this.padStart) this.onPause();
+      if (start && !this.padStart && allowPause) this.onPause();
       this.padStart = start;
-    }
+    } else this.padStart = false;
     const len = Math.hypot(x, y);
     if (len > 1) { x /= len; y /= len; }
 

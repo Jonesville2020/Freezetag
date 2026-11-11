@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#0b1320">
 <title>Freeze Tag 3D</title>
-<link rel="stylesheet" href="style.css?v=character-studio">
+<link rel="stylesheet" href="style.css?v=controller-menu">
 <script type="importmap">{"imports":{"three":"./vendor/three.module.min.js"}}</script>
 </head>
 <body>
@@ -29,7 +29,22 @@
 
 <div id="stick" class="stick"><div id="stick-knob"></div></div>
 
-<section id="menu" class="card-wrap">
+<section id="home" class="card-wrap">
+  <div class="card home-card">
+    <span class="eyebrow">FREEZE TAG / 3D</span>
+    <h1>Ready, set,<br><em>play!</em></h1>
+    <p>Chase your friends, escape the maze, and make your own runner.</p>
+    <div class="home-actions">
+      <button id="quick-play" class="primary">Quick play · random game</button>
+      <button id="custom-play" class="secondary">Choose game &amp; players</button>
+      <button id="home-settings" class="secondary">Settings</button>
+    </div>
+    <p class="small">Controller: left stick / D-pad to move through options, A to select, B to go back. Left / right changes a setting.</p>
+    <p class="small audio-status" role="status"></p>
+  </div>
+</section>
+
+<section id="menu" class="card-wrap" hidden>
   <form class="card" onsubmit="return false">
     <span class="eyebrow">FREEZE TAG / 3D</span>
     <h1>Hunt. Hide.<br><em>Freeze everyone.</em></h1>
@@ -72,6 +87,7 @@
     </details>
     <label class="check" id="rescue-option"><input type="checkbox" id="opt-rescue" checked><span>Runners can thaw frozen teammates (stay close for 1 second)</span></label>
     <button id="start" class="primary">Enter the arena →</button>
+    <button id="setup-back" type="button" class="secondary">Back to home</button>
     <p class="small" id="mode-help">Tag by touching. Move with WASD / arrows, left-thumb joystick or a gamepad. Rotate the camera by dragging, Q/E, or the right stick.</p>
     <p class="small">In tap / click mode, hold your finger in the direction you want to move; lift it to stop. Tap briefly to move to a spot.</p>
   </form>
@@ -85,21 +101,34 @@
       <label class="solo-only">Camera<select id="pause-camera"><option value="separate">Separate (you steer it)</option><option value="follow">Follows your character</option></select></label>
     </div>
     <div class="split-only" id="pause-split" hidden></div>
+    <div id="maze-give-ups" class="actions" hidden></div>
     <div class="actions">
       <button id="auto-cam" class="secondary" aria-pressed="true">Auto-recentre: on</button>
-      <button id="sound" class="secondary">Sound: on</button>
+      <button id="sound" class="secondary">Effects: on</button>
+      <button id="pause-settings" class="secondary">Audio settings</button>
       <button id="fullscreen" class="secondary">Full screen</button>
     </div>
-    <div class="actions"><button id="pause-menu" class="secondary">Match setup</button><button id="resume" class="primary">Keep playing →</button></div>
+    <div class="actions"><button id="pause-menu" class="secondary">Home menu</button><button id="resume" class="primary">Keep playing →</button></div>
+  </div>
+</section>
+
+<section id="audio-settings" class="card-dialog" hidden>
+  <div class="card">
+    <span class="eyebrow">SETTINGS</span><h1>Audio</h1>
+    <label class="volume">Music <output id="music-value">20%</output><input id="music-volume" type="range" min="0" max="100" step="5" value="20"></label>
+    <label class="volume">Effects &amp; character reactions <output id="effects-value">70%</output><input id="effects-volume" type="range" min="0" max="100" step="5" value="70"></label>
+    <p class="small">Set a slider to zero to mute it. Your choices are saved on this device.</p>
+    <p class="small audio-status" role="status"></p>
+    <button id="settings-back" class="primary">Back</button>
   </div>
 </section>
 
 <section id="result" class="card-dialog" hidden>
   <div class="card">
     <span class="eyebrow" id="result-tag">ROUND OVER</span><h1 id="result-title"></h1><p id="result-description"></p>
-    <div class="actions"><button id="result-menu" class="secondary">Match setup</button><button id="next-round" class="primary" hidden>Next round →</button><button id="replay" class="primary">Play again →</button></div>
+    <div class="actions"><button id="result-menu" class="secondary">Home menu</button><button id="next-round" class="primary" hidden>Next round →</button><button id="replay" class="primary">Play again →</button></div>
   </div>
 </section>
-<script type="module" src="js/main.js?v=character-studio"></script>
+<script type="module" src="js/main.js?v=controller-menu"></script>
 </body>
 </html>

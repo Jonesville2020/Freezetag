@@ -3,9 +3,10 @@ import { World, LAYOUTS, SIZE, HALF } from './world.js';
 import { Character, RUNNER_COLORS, SEEKER_COLOR, normalizeAppearance } from './character.js?v=character-studio';
 import { CharacterStudio } from './studio.js?v=character-studio';
 import { ChaseCamera } from './camera.js?v=character-studio';
-import { Input } from './input.js?v=character-studio';
+import { Input } from './input.js?v=controller-menu';
 import { Brain, LEVELS } from './ai.js';
-import { Sfx } from './sfx.js';
+import { Sfx } from './sfx.js?v=controller-menu';
+import { MenuController } from './menu-controller.js';
 import { Navigator } from './nav.js';
 import { MAX_PLAYERS, keymapFor, playerRects, slotLabels, assignSlot, normalizeSlots } from './splitscreen.js';
 import { createMaze } from './maze-mode.js';
@@ -23,8 +24,6 @@ renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x0b1320);
 scene.fog = new THREE.Fog(0x0b1320, 45, 110);
-const sfx = new Sfx();
-
 const stored = JSON.parse(localStorage.getItem('ft3d-settings') || '{}');
 const settings = {
   scheme: 'direct', camera: 'separate', ...stored,
@@ -32,7 +31,14 @@ const settings = {
   players: Array.from({ length: MAX_PLAYERS }, (_, i) => ({ scheme: 'direct', camera: 'separate', ...stored.players?.[i] })),
   appearances: Array.from({ length: MAX_PLAYERS }, (_, i) => normalizeAppearance(stored.appearances?.[i])),
   slots: normalizeSlots(stored.slots, MAX_PLAYERS),
+  audio: {
+    music: Number.isFinite(stored.audio?.music) ? Math.max(0, Math.min(1, stored.audio.music)) : 0.2,
+    effects: Number.isFinite(stored.audio?.effects) ? Math.max(0, Math.min(1, stored.audio.effects)) : 0.7,
+  },
 };
+const sfx = new Sfx({ ...settings.audio, report: (message) => {
+  for (const el of document.querySelectorAll('.audio-status')) el.textContent = message;
+} });
 const PLAYER_COLORS = [0xffffff, 0xffd23f, 0x7dff8a, 0xff7bf0];
 const ground = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
 const pickRay = new THREE.Raycaster();
@@ -272,6 +278,8 @@ function startMatch(config) {
   for (const p of players) { p.rig.snap = true; p.rig.yaw = Math.PI; p.rig.idle = 0; p.rig.maze = Boolean(game.maze); }
   applySettings();
   $('menu').hidden = true;
+  $('home').hidden = true;
+  $('audio-settings').hidden = true;
   $('result').hidden = true;
   $('paused').hidden = true;
   document.body.classList.add('in-game');
@@ -354,6 +362,7 @@ function step(dt) {
     for (const event of updateSeries(game.series, entities, dt)) {
       if (event.type === 'infected') {
         updateRoleAppearance(event.player);
+        if (seenByAll(event.player).some(Boolean)) sfx.reaction('infected');
         if (event.player.human) toast('Infected! You are now a seeker.', 2000, event.player);
       }
     }
@@ -404,6 +413,7 @@ function step(dt) {
         e.escaped = true;
         e.finishTime = game.elapsed;
         e.vel.x = e.vel.z = 0;
+        if (seenByAll(e).some(Boolean)) sfx.reaction('escape');
         toast(`Escaped in ${e.finishTime.toFixed(1)}s!`, 2500, e);
       }
     }
@@ -423,7 +433,7 @@ function step(dt) {
             updateRoleAppearance(s);
             updateRoleAppearance(r);
             const seen = seenByAll(r);
-            if (seen.some(Boolean)) { burst(r.pos.x, r.pos.z, 0x9eefff, seen); sfx.freeze(); }
+            if (seen.some(Boolean)) { burst(r.pos.x, r.pos.z, 0x9eefff, seen); sfx.freeze(); sfx.reaction('frozen'); }
             if (r.human) toast(config.mode === 'tag' ? 'You are IT!' : 'Frozen! Rescue before infection.', 2000, r);
           } else if (!game.series) freeze(r, s);
         }
@@ -449,7 +459,7 @@ function step(dt) {
 function freeze(r, by) {
   r.frozen = true; r.thaw = 0; r.vel.x = r.vel.z = 0;
   const seen = seenByAll(r);
-  if (seen.some(Boolean)) { burst(r.pos.x, r.pos.z, 0x9eefff, seen); sfx.freeze(); }
+  if (seen.some(Boolean)) { burst(r.pos.x, r.pos.z, 0x9eefff, seen); sfx.freeze(); sfx.reaction('frozen'); }
   if (r.human) toast('You were frozen! Wait for a rescue.', 2200, r);
   else if (by.human) toast(`Frozen! ${game.entities.filter((e) => !e.seeker && e.frozen).length}/${game.config.runners}`, 1000, by);
 }
@@ -464,7 +474,7 @@ function updateThaw(dt) {
     if (f.thaw >= 1 || f.campTime >= 3) {
       f.frozen = false; f.thaw = 0; f.infection = 0; f.grace = f.campTime >= 3 ? 5 : GRACE; f.campTime = 0;
       const seen = seenByAll(f);
-      if (seen.some(Boolean)) { burst(f.pos.x, f.pos.z, 0xffffff, seen); sfx.thaw(); }
+      if (seen.some(Boolean)) { burst(f.pos.x, f.pos.z, 0xffffff, seen); sfx.thaw(); sfx.reaction('thaw'); }
       if (f.human) toast('Thawed! Run!', 1500, f);
     }
   }
@@ -531,6 +541,7 @@ function nextSeriesRound() {
 
 function endMaze() {
   game.state = 'ended';
+  $('paused').hidden = true;
   const finishers = game.entities.filter((e) => e.escaped).sort((a, b) => a.finishTime - b.finishTime);
   for (const e of game.entities) e.joyTarget = e.escaped;
   $('result-tag').textContent = 'MAZE DASH';
@@ -543,11 +554,12 @@ function endMaze() {
 }
 
 function giveUp(e) {
-  if (game.state !== 'playing' || !game.maze || !e || e.escaped || e.gaveUp) return;
+  if (!['playing', 'paused'].includes(game.state) || !game.maze || !e || e.escaped || e.gaveUp) return;
   e.gaveUp = true;
   e.vel.x = e.vel.z = 0;
   e.player.pane.giveUp.hidden = true;
   if (game.entities.every((player) => player.escaped || player.gaveUp)) endMaze();
+  else if (game.state === 'paused') updateMazeGiveUps();
 }
 
 function endMatch(winner) {
@@ -727,13 +739,16 @@ function frame(now) {
   requestAnimationFrame(frame);
   const dt = Math.min(0.05, (now - last) / 1000);
   last = now;
+  sfx.update(!document.hidden && game.state !== 'paused');
+  if (game.state !== 'playing') menuController.update(navigator.getGamepads?.(), now);
+  else menuController.update(null, now);
   if (game.state === 'menu') {
     renderer.setScissorTest(false);
     renderer.setViewport(0, 0, innerWidth, innerHeight);
     renderer.render(scene, camera);
     return;
   }
-  const polls = players.map((p) => p.input.poll(dt));
+  const polls = players.map((p) => p.input.poll(dt, game.state === 'playing'));
   if (game.state !== 'paused') {
     players.forEach((p, i) => {
       // In follow mode the camera turns with the character, so only tilt and zoom are manual.
@@ -763,8 +778,14 @@ function pause(on = game.state === 'playing') {
     game.state = 'paused';
     for (const p of players) p.input.releaseAll();
     $('paused').hidden = false;
+    updateMazeGiveUps();
   }
-  else if (!on && game.state === 'paused') { game.state = 'playing'; $('paused').hidden = true; last = performance.now(); }
+  else if (!on && game.state === 'paused') {
+    game.state = 'playing';
+    $('paused').hidden = true;
+    for (const p of players) p.input.padStart = true;
+    last = performance.now();
+  }
 }
 for (const p of pool) p.input.onPause = () => pause(game.state === 'playing');
 addEventListener('blur', () => pause(true));
@@ -778,6 +799,26 @@ $('result-menu').addEventListener('click', toMenu);
 $('pause-menu').addEventListener('click', toMenu);
 $('resume').addEventListener('click', () => pause(false));
 $('pause').addEventListener('click', () => pause(true));
+$('custom-play').addEventListener('click', () => {
+  $('home').hidden = true;
+  $('menu').hidden = false;
+  $('opt-mode').focus();
+});
+$('setup-back').addEventListener('click', toHome);
+$('quick-play').addEventListener('click', () => {
+  const pick = (items) => items[Math.floor(Math.random() * items.length)];
+  const mode = pick(['freeze', 'tag', 'outbreak', 'maze']);
+  const base = readConfig();
+  const roles = Array.from({ length: base.players }, () => pick(['runner', 'seeker']));
+  const config = {
+    ...base, mode, roles, role: roles[0], map: Math.floor(Math.random() * LAYOUTS.length),
+    runners: pick([4, 6, 10]), seekers: pick([1, 2]), duration: pick([90, 120, 180]),
+    mazeSize: pick([5, 7]), level: pick(['kid', 'scout']), rescue: true,
+  };
+  sfx.unlock();
+  startMatch(config);
+  toast(`Quick play: ${{ freeze: 'Freeze Tag', tag: 'Timed Tag', outbreak: 'Freeze Outbreak', maze: 'Maze Dash' }[mode]}`, 2500);
+});
 $('auto-cam').addEventListener('click', (e) => {
   const on = !rig.autoFollow;
   for (const p of pool) p.rig.autoFollow = on;
@@ -922,8 +963,52 @@ updateModeOptions();
 updateAppearancePlayers();
 $('sound').addEventListener('click', (e) => {
   const on = sfx.toggle();
-  e.currentTarget.textContent = `Sound: ${on ? 'on' : 'off'}`;
+  e.currentTarget.textContent = `Effects: ${on ? 'on' : 'off'}`;
 });
+function updateMazeGiveUps() {
+  const container = $('maze-give-ups');
+  container.replaceChildren();
+  container.hidden = !game.maze;
+  if (!game.maze) return;
+  for (const p of players) {
+    if (p.ent.escaped || p.ent.gaveUp) continue;
+    const button = document.createElement('button');
+    button.textContent = `P${p.index + 1} give up maze`;
+    button.addEventListener('click', () => giveUp(p.ent));
+    container.append(button);
+  }
+}
+let settingsReturn = 'home';
+function openAudioSettings(from) {
+  settingsReturn = from;
+  $('audio-settings').hidden = false;
+  $('music-volume').focus();
+}
+function closeAudioSettings() {
+  $('audio-settings').hidden = true;
+  $(settingsReturn === 'paused' ? 'pause-settings' : 'home-settings').focus();
+}
+$('home-settings').addEventListener('click', () => openAudioSettings('home'));
+$('pause-settings').addEventListener('click', () => openAudioSettings('paused'));
+$('settings-back').addEventListener('click', closeAudioSettings);
+function updateAudio() {
+  for (const [key, id] of [['music', 'music-volume'], ['effects', 'effects-volume']]) {
+    $(id).value = String(Math.round(settings.audio[key] * 100));
+    $(`${key}-value`).textContent = `${$(id).value}%`;
+  }
+  sfx.setVolumes(settings.audio.music, settings.audio.effects);
+  localStorage.setItem('ft3d-settings', JSON.stringify(settings));
+}
+for (const [key, id] of [['music', 'music-volume'], ['effects', 'effects-volume']]) {
+  $(id).addEventListener('input', (event) => {
+    settings.audio[key] = Number(event.target.value) / 100;
+    updateAudio();
+  });
+}
+updateAudio();
+for (const event of ['pointerdown', 'keydown']) {
+  document.addEventListener(event, (e) => { if (!sfx.ctx || sfx.ctx.state !== 'running') sfx.unlock(e.isTrusted); });
+}
 $('fullscreen').addEventListener('click', () => {
   if (document.fullscreenElement) document.exitFullscreen(); else document.documentElement.requestFullscreen?.();
 });
@@ -931,9 +1016,29 @@ function toMenu() {
   game.state = 'menu';
   setPlayers(1);
   applySettings();
-  $('menu').hidden = false; $('result').hidden = true; $('paused').hidden = true;
+  $('home').hidden = false; $('menu').hidden = true; $('result').hidden = true; $('paused').hidden = true; $('audio-settings').hidden = true;
   document.body.classList.remove('in-game');
+  $('quick-play').focus();
 }
+function toHome() {
+  $('menu').hidden = true;
+  $('home').hidden = false;
+  $('quick-play').focus();
+}
+
+const menuController = new MenuController({
+  root: () => !$('audio-settings').hidden ? $('audio-settings')
+    : game.state === 'menu' ? (!$('home').hidden ? $('home') : $('menu'))
+    : game.state === 'paused' ? $('paused')
+    : game.state === 'ended' && !$('result').hidden ? $('result') : null,
+  back: () => {
+    if (!$('audio-settings').hidden) closeAudioSettings();
+    else if (game.state === 'paused') pause(false);
+    else if (game.state === 'ended') toMenu();
+    else if (game.state === 'menu' && !$('menu').hidden) toHome();
+  },
+  activateAudio: () => { if (!sfx.ctx || sfx.ctx.state !== 'running') sfx.unlock(); },
+});
 
 for (const [i, l] of LAYOUTS.entries()) $('opt-map').add(new Option(l.name, i));
 for (const [k, l] of Object.entries(LEVELS)) $('opt-level').add(new Option(l.label, k, false, k === 'kid'));
