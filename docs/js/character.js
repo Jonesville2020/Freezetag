@@ -16,6 +16,9 @@ const geo = {
   foot: new THREE.BoxGeometry(0.14, 0.09, 0.3), brim: new THREE.BoxGeometry(0.26, 0.025, 0.2),
   dome: new THREE.SphereGeometry(0.215, 20, 12, 0, Math.PI * 2, 0, Math.PI / 2),
   bun: new THREE.SphereGeometry(0.09, 12, 10), ice: new THREE.IcosahedronGeometry(1, 1),
+  detail: new THREE.SphereGeometry(1, 12, 10),
+  skirt: new THREE.CylinderGeometry(0.17, 0.29, 0.34, 16),
+  band: new THREE.CylinderGeometry(0.197, 0.197, 0.09, 16),
 };
 
 const SKINS = [0xf2c9a5, 0xd9a47c, 0xb97a56, 0x8a5a3c, 0x5e3b27];
@@ -25,16 +28,19 @@ export const SEEKER_COLOR = 0xe5384c;
 
 export const DEFAULT_APPEARANCE = {
   skin: '#d9a47c', hair: '#2b1b12', shirt: '#3da9fc',
-  pants: '#24303f', shoe: '#f4f4f4', accent: '#ff9f43', style: 'short',
+  pants: '#24303f', shoe: '#f4f4f4', accent: '#ff9f43', style: 'short', top: 'tee', bottom: 'pants',
 };
-export const HAIR_STYLES = ['short', 'bun', 'cap', 'beanie', 'none'];
+export const HAIR_STYLES = ['short', 'side', 'spiky', 'bob', 'long', 'ponytail', 'pigtails', 'buns', 'curly', 'bun', 'cap', 'beanie', 'none'];
+export const TOP_STYLES = ['tee', 'striped', 'hoodie', 'jacket'];
+export const BOTTOM_STYLES = ['pants', 'shorts', 'skirt'];
 
 export function normalizeAppearance(value = {}) {
   if (!value || typeof value !== 'object') value = {};
   const result = {};
   for (const [key, fallback] of Object.entries(DEFAULT_APPEARANCE)) {
-    result[key] = key === 'style'
-      ? (HAIR_STYLES.includes(value[key]) ? value[key] : fallback)
+    const options = { style: HAIR_STYLES, top: TOP_STYLES, bottom: BOTTOM_STYLES }[key];
+    result[key] = options
+      ? (options.includes(value[key]) ? value[key] : fallback)
       : (typeof value[key] === 'string' && /^#[0-9a-f]{6}$/i.test(value[key]) ? value[key] : fallback);
   }
   return result;
@@ -67,13 +73,14 @@ export class Character {
       hair: new THREE.MeshStandardMaterial({ color: pick(HAIR), roughness: 0.9 }),
       accent: new THREE.MeshStandardMaterial({ color: pick(RUNNER_COLORS), roughness: 0.7 }),
       eye: new THREE.MeshStandardMaterial({ color: 0x15151c, roughness: 0.3 }),
+      white: new THREE.MeshStandardMaterial({ color: 0xfff8ef, roughness: 0.5 }),
     };
     if (appearance) {
       const look = normalizeAppearance(appearance);
       for (const key of ['skin', 'hair', 'shirt', 'pants', 'shoe', 'accent']) this.mats[key].color.set(look[key]);
-      this.#build(look.style);
+      this.#build(look.style, look.top, look.bottom);
     } else {
-      this.#build(seeker ? 'cap' : pick(['short', 'cap', 'beanie', 'bun']));
+      this.#build(seeker ? 'cap' : pick(HAIR_STYLES), pick(TOP_STYLES), pick(BOTTOM_STYLES));
     }
     this.group.scale.setScalar(0.92);
     this.group.traverse((o) => { if (o.isMesh && o !== this.ice) o.castShadow = true; });
@@ -92,6 +99,7 @@ export class Character {
 
   #mesh(g, m, parent, x = 0, y = 0, z = 0) {
     const mesh = new THREE.Mesh(g, m);
+    mesh.userData.shared = true;
     mesh.position.set(x, y, z);
     parent.add(mesh);
     return mesh;
@@ -104,18 +112,35 @@ export class Character {
     return g;
   }
 
-  #build(style) {
-    const { skin, shirt, pants, shoe, eye } = this.mats;
+  #build(style, top, bottom) {
+    const { skin, shirt, pants, shoe, eye, hair, accent, white } = this.mats;
     this.body = this.#pivot(this.group, 0, 0, 0);
     this.hips = this.#pivot(this.body, 0, 0.98, 0);
     this.#mesh(geo.pelvis, pants, this.hips).rotation.z = Math.PI / 2;
     this.spine = this.#pivot(this.hips, 0, 0.05, 0);
     this.#mesh(geo.torso, shirt, this.spine, 0, 0.3, 0).scale.set(1, 1, 0.68);
+    if (top === 'striped') {
+      for (const y of [0.2, 0.37]) this.#mesh(geo.band, accent, this.spine, 0, y, 0).scale.z = 0.69;
+    } else if (top === 'hoodie') {
+      this.#mesh(geo.detail, shirt, this.spine, 0, 0.56, -0.1).scale.set(0.19, 0.18, 0.13);
+      this.#mesh(geo.detail, accent, this.spine, 0, 0.22, 0.13).scale.set(0.12, 0.07, 0.025);
+    } else if (top === 'jacket') {
+      this.#mesh(geo.detail, accent, this.spine, 0, 0.34, 0.133).scale.set(0.018, 0.22, 0.012);
+      for (const x of [-0.1, 0.1]) this.#mesh(geo.detail, accent, this.spine, x, 0.22, 0.12).scale.set(0.045, 0.035, 0.015);
+    }
+    if (bottom === 'skirt') this.#mesh(geo.skirt, pants, this.hips, 0, -0.13, 0);
 
     this.neck = this.#pivot(this.spine, 0, 0.68, 0);
     const head = this.#mesh(geo.head, skin, this.neck, 0, 0.14, 0);
-    this.#mesh(geo.eye, eye, head, -0.075, 0.02, 0.175);
-    this.#mesh(geo.eye, eye, head, 0.075, 0.02, 0.175);
+    head.scale.set(0.96, 1.04, 0.96);
+    for (const side of [-1, 1]) {
+      this.#mesh(geo.detail, skin, head, side * 0.195, -0.005, 0).scale.set(0.045, 0.064, 0.032);
+      this.#mesh(geo.eye, white, head, side * 0.068, 0.015, 0.18).scale.set(1, 0.72, 0.45);
+      this.#mesh(geo.detail, eye, head, side * 0.068, 0.015, 0.194).scale.set(0.013, 0.018, 0.009);
+      this.#mesh(geo.detail, hair, head, side * 0.068, 0.058, 0.177).scale.set(0.033, 0.007, 0.006);
+    }
+    this.#mesh(geo.detail, skin, head, 0, -0.025, 0.194).scale.set(0.024, 0.02, 0.018);
+    this.#mesh(geo.detail, this.mats.eye, head, 0, -0.078, 0.18).scale.set(0.033, 0.006, 0.004);
     this.#headgear(head, style);
 
     this.arms = [-1, 1].map((side) => {
@@ -129,11 +154,12 @@ export class Character {
 
     this.legs = [-1, 1].map((side) => {
       const hip = this.#pivot(this.hips, side * 0.11, -0.04, 0);
-      this.#mesh(geo.thigh, pants, hip, 0, -0.23, 0);
+      this.#mesh(geo.thigh, bottom === 'skirt' ? skin : pants, hip, 0, -0.23, 0);
       const knee = this.#pivot(hip, 0, -0.46, 0);
-      this.#mesh(geo.shin, pants, knee, 0, -0.22, 0);
+      this.#mesh(geo.shin, bottom === 'pants' ? pants : skin, knee, 0, -0.22, 0);
       const ankle = this.#pivot(knee, 0, -0.45, 0);
       this.#mesh(geo.foot, shoe, ankle, 0, -0.02, 0.07);
+      this.#mesh(geo.detail, white, ankle, 0, -0.055, 0.13).scale.set(0.072, 0.018, 0.13);
       return { side, hip, knee, ankle };
     });
 
@@ -142,6 +168,7 @@ export class Character {
       emissive: 0x2a8fb0, emissiveIntensity: 0.5, flatShading: true, depthWrite: false,
     }));
     this.ice.position.y = 0.95;
+    this.ice.userData.shared = true;
     this.ice.visible = false;
     this.group.add(this.ice);
   }
@@ -149,16 +176,35 @@ export class Character {
   #headgear(head, style) {
     const { hair, accent } = this.mats;
     const paint = this.seeker && !this.custom ? this.mats.shirt : accent;
-    if (style === 'short') {
+    if (['short', 'side', 'spiky', 'bob', 'long', 'ponytail', 'pigtails', 'buns', 'curly', 'bun'].includes(style)) {
       this.#mesh(geo.dome, hair, head, 0, 0.02, -0.01);
+      if (['short', 'side', 'spiky', 'bob', 'long', 'ponytail', 'pigtails'].includes(style)) {
+        const fringe = this.#mesh(geo.detail, hair, head, style === 'side' ? 0.05 : 0, 0.12, 0.14);
+        fringe.scale.set(0.16, 0.065, 0.065);
+        fringe.rotation.z = style === 'side' ? -0.3 : 0;
+      }
+      if (['bob', 'long'].includes(style)) {
+        this.#mesh(geo.detail, hair, head, 0, style === 'long' ? -0.14 : -0.07, -0.11)
+          .scale.set(0.21, style === 'long' ? 0.3 : 0.2, 0.12);
+      }
+      if (style === 'ponytail') this.#mesh(geo.detail, hair, head, 0, -0.04, -0.24).scale.set(0.09, 0.22, 0.1);
+      if (style === 'pigtails' || style === 'buns') for (const side of [-1, 1]) {
+        this.#mesh(geo.detail, hair, head, side * 0.22, style === 'buns' ? 0.16 : -0.01, -0.06)
+          .scale.set(0.1, style === 'buns' ? 0.1 : 0.18, 0.09);
+      }
+      if (style === 'bun') this.#mesh(geo.bun, hair, head, 0, 0.24, -0.06);
+      if (style === 'curly') for (const x of [-0.13, 0, 0.13]) for (const z of [-0.09, 0.06]) {
+        this.#mesh(geo.bun, hair, head, x, 0.16, z);
+      }
+      if (style === 'spiky') for (const x of [-0.11, 0, 0.11]) {
+        const tuft = this.#mesh(geo.detail, hair, head, x, 0.21, 0);
+        tuft.scale.set(0.06, 0.12, 0.06); tuft.rotation.z = x * -2;
+      }
     } else if (style === 'cap') {
       this.#mesh(geo.dome, paint, head, 0, 0.03, 0);
       this.#mesh(geo.brim, paint, head, 0, 0.1, 0.2);
     } else if (style === 'beanie') {
       this.#mesh(geo.dome, paint, head, 0, 0.04, 0).scale.set(1.04, 1.1, 1.04);
-    } else if (style === 'bun') {
-      this.#mesh(geo.dome, hair, head, 0, 0.02, -0.01);
-      this.#mesh(geo.bun, hair, head, 0, 0.24, -0.06);
     }
   }
 

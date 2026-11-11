@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createMaze } from '../docs/js/maze-mode.js';
 import { World } from '../docs/js/world.js';
+import { MazeMonster, MONSTER_DELAY, MONSTER_SPEED } from '../docs/js/maze-monster.js';
 
 function randomSeed(seed) {
   return () => {
@@ -25,6 +26,40 @@ test('generated mazes have connected passages and a distinct reachable exit', ()
     assert.notDeepEqual(maze.start, maze.exit);
     assert.equal(maze.layout.walls.length, 4 + (size - 1) ** 2);
   }
+});
+
+test('monster waits, follows slowly around walls and only catches active visible players', () => {
+  const maze = createMaze(5, randomSeed(42));
+  const world = new World(maze.layout);
+  const monster = new MazeMonster(maze.start);
+  const player = { pos: { ...maze.exit } };
+  assert.deepEqual(monster.update(MONSTER_DELAY - 1, world, [player]), []);
+  assert.deepEqual(monster.pos, maze.start);
+  monster.update(1, world, [player]);
+  assert.ok(Math.hypot(monster.pos.x - maze.start.x, monster.pos.z - maze.start.z) <= MONSTER_SPEED + 1e-6);
+  let caught = false;
+  for (let i = 0; i < 2500 && !caught; i++) {
+    caught = monster.update(0.1, world, [player]).includes(player);
+    for (const wall of world.rects) {
+      const x = Math.max(wall.minX, Math.min(monster.pos.x, wall.maxX));
+      const z = Math.max(wall.minZ, Math.min(monster.pos.z, wall.maxZ));
+      assert.ok(Math.hypot(monster.pos.x - x, monster.pos.z - z) >= 0.399);
+    }
+  }
+  assert.ok(caught, 'monster follows the maze passages to the player');
+  player.caught = true;
+  assert.deepEqual(monster.update(0.1, world, [player]), []);
+});
+
+test('a wall prevents catches and finished players are ignored', () => {
+  const monster = new MazeMonster({ x: 0, z: 0 });
+  monster.delay = 0;
+  const world = { blocked: () => true, resolve: () => {}, path: () => [] };
+  const player = { pos: { x: 0.3, z: 0 } };
+  assert.deepEqual(monster.update(0.1, world, [player]), []);
+  world.blocked = () => false;
+  const escaped = { pos: { x: 0, z: 0 }, escaped: true };
+  assert.deepEqual(monster.update(0.1, world, [escaped, player]), [player]);
 });
 
 test('the actual collision grid has a walkable path to the exit', () => {

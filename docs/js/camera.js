@@ -131,7 +131,7 @@ export class ChaseCamera {
     for (const m of world.wallMeshes) {
       const next = this.fade.get(m) ?? 1;
       m.material.opacity = next;
-      m.children[0].material.opacity = next;
+      for (const child of m.children) child.material.opacity = next;
       m.material.depthWrite = next > 0.95;
     }
   }

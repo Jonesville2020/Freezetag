@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
-import { Character, DEFAULT_APPEARANCE, normalizeAppearance } from '../docs/js/character.js';
+import { Character, DEFAULT_APPEARANCE, normalizeAppearance, HAIR_STYLES, TOP_STYLES, BOTTOM_STYLES } from '../docs/js/character.js';
 import { ChaseCamera, mazeCameraFraction } from '../docs/js/camera.js';
 import { holdDirection } from '../docs/js/steering.js';
 
@@ -12,6 +12,22 @@ test('custom appearance validates saved values and applies colors to a seeker', 
   assert.equal(character.mats.shirt.color.getHexString(), '123456');
   assert.equal(character.mats.pants.color.getHexString(), DEFAULT_APPEARANCE.pants.slice(1));
   assert.equal(normalizeAppearance({ style: 'bad' }).style, 'short');
+});
+
+test('old saved looks migrate and every new style can be built', () => {
+  const saved = normalizeAppearance({ style: 'bun', shirt: '#123456' });
+  assert.equal(saved.style, 'bun');
+  assert.equal(saved.shirt, '#123456');
+  assert.equal(saved.top, 'tee');
+  assert.equal(saved.bottom, 'pants');
+  for (const style of HAIR_STYLES) {
+    const character = new Character({ appearance: { ...saved, style } });
+    assert.ok(character.group.children.length);
+  }
+  for (const top of TOP_STYLES) for (const bottom of BOTTOM_STYLES) {
+    const character = new Character({ appearance: { ...saved, top, bottom } });
+    assert.ok(character.group.children.length);
+  }
 });
 
 test('maze camera remains below wall height and in front of blocking walls', () => {

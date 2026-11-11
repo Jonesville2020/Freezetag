@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { Character, normalizeAppearance } from './character.js?v=character-studio';
+import { Character, normalizeAppearance } from './character.js?v=world-refresh';
 
 export class CharacterStudio {
   constructor(canvas) {
@@ -12,8 +12,8 @@ export class CharacterStudio {
     light.position.set(3, 5, 5);
     this.scene.add(light);
     this.camera = new THREE.PerspectiveCamera(32, 230 / 190, 0.1, 20);
-    this.camera.position.set(2.2, 1.8, 4.4);
-    this.camera.lookAt(0, 0.85, 0);
+    this.camera.position.set(1.4, 1.6, 3.7);
+    this.camera.lookAt(0, 0.95, 0);
     const platform = new THREE.Mesh(new THREE.CylinderGeometry(0.75, 0.8, 0.12, 32),
       new THREE.MeshStandardMaterial({ color: 0x25445a, roughness: 0.65 }));
     platform.position.y = -0.07;

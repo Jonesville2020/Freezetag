@@ -61,7 +61,7 @@ export function createMaze(size = 7, random = Math.random) {
     z: origin + (Math.floor(cell / size) + 0.5) * cellSize,
   });
   return {
-    layout: { name: 'Maze Dash', floor: 0x3d6f6d, line: 0xc6eec7, wall: 0xc1bb9a, trim: 0x2f5959, walls },
+    layout: { name: 'Maze Dash', floor: 0x91aa87, line: 0xf5ebca, wall: 0xd7c8aa, trim: 0x8c9877, walls },
     start: centre(0),
     exit: centre(exitCell),
     passages,

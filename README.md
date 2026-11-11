@@ -13,7 +13,7 @@ Run: `npm start`, then open http://localhost:8000 (needs an HTTP server because 
 - **Freeze Tag:** freeze every runner, or survive until time expires. Rescue is optional.
 - **Timed Tag:** five 40-second rounds. Passing IT freezes the new seeker for 3 seconds and gives the previous seeker 4.25 seconds of protection. Lowest total IT time wins; press Next round between rounds.
 - **Freeze Outbreak:** three 120-second rounds against a Scout seeker. Frozen runners turn into seekers after 8 seconds unless rescued. Scored seekers steal up to 5 seconds per tag; highest survival score wins.
-- **Maze Dash:** explore a randomly generated compact or standard maze and reach the glowing exit. Each local player's time is recorded separately; each can give up without ending the others' run.
+- **Maze Dash:** explore a randomly generated compact or standard maze and reach the glowing exit. A small, slow monster begins following after a 12-second head start. If it catches a player, that player's run ends; other players can still escape or give up independently.
 
 Local play supports 1–4 players on one device, with separate views and independent line of sight. Choose each player's controls and screen position in setup or pause. Freeze Tag also lets players choose different sides. P1 uses WASD and P2 uses arrows; P3/P4 use touch or controllers. In 3–4-player games, the first controllers are assigned to P3/P4 first, then P1/P2. Two-player games assign them to P1/P2 in order. Connect or activate controllers before the match; controller hardware behavior depends on the device/browser.
 
@@ -21,7 +21,7 @@ The home menu offers **Quick play**, which chooses a random mode and match optio
 
 **Settings** provides independent music and effects volume sliders, saved on the device. Character reactions are synthesized along with other effects. Some browsers require a screen tap or keyboard press to enable audio, even when using a controller.
 
-Open **Character studio** in match setup to choose a hair or hat style and colors for skin, hair, shirt, pants, shoes and hat. Each local player's look is saved on the device and stays the same when their role changes.
+Open **Character studio** in match setup to choose from hairstyles and hats, tops, pants, shorts or a skirt, and colors for skin, hair, clothes, shoes and accents. Each local player's look is saved on the device and stays the same when their role changes. Existing saved looks retain their colors and hair.
 
 Controls (change in Match setup or the pause menu; saved on the device):
 - **Movement: Joystick · WASD · gamepad** — WASD/arrows, left-thumb floating joystick, or controller. Drag, Q/E or right stick rotate the camera.

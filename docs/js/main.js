@@ -1,15 +1,16 @@
 import * as THREE from 'three';
-import { World, LAYOUTS, SIZE, HALF } from './world.js';
-import { Character, RUNNER_COLORS, SEEKER_COLOR, normalizeAppearance } from './character.js?v=character-studio';
-import { CharacterStudio } from './studio.js?v=character-studio';
-import { ChaseCamera } from './camera.js?v=character-studio';
+import { World, LAYOUTS, SIZE, HALF } from './world.js?v=world-refresh';
+import { Character, RUNNER_COLORS, SEEKER_COLOR, normalizeAppearance } from './character.js?v=world-refresh';
+import { CharacterStudio } from './studio.js?v=world-refresh';
+import { ChaseCamera } from './camera.js?v=world-refresh';
 import { Input } from './input.js?v=controller-menu';
 import { Brain, LEVELS } from './ai.js';
 import { Sfx } from './sfx.js?v=controller-menu';
 import { MenuController } from './menu-controller.js';
 import { Navigator } from './nav.js';
 import { MAX_PLAYERS, keymapFor, playerRects, slotLabels, assignSlot, normalizeSlots } from './splitscreen.js';
-import { createMaze } from './maze-mode.js';
+import { createMaze } from './maze-mode.js?v=world-refresh';
+import { MazeMonster } from './maze-monster.js';
 import { createSeries, startSeriesRound, updateSeries, seriesTag, standings, seriesLeaders } from './modes.js';
 import { holdDirection } from './steering.js';
 
@@ -22,8 +23,8 @@ renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x0b1320);
-scene.fog = new THREE.Fog(0x0b1320, 45, 110);
+scene.background = new THREE.Color(0x9fc3ca);
+scene.fog = new THREE.Fog(0x9fc3ca, 45, 110);
 const stored = JSON.parse(localStorage.getItem('ft3d-settings') || '{}');
 const settings = {
   scheme: 'direct', camera: 'separate', ...stored,
@@ -163,7 +164,14 @@ function setPlayers(n) {
 function startMatch(config) {
   if (game.matchGroup) {
     scene.remove(game.matchGroup);
-    game.matchGroup.traverse((o) => { if (o.geometry && !o.userData.shared) o.geometry.dispose?.(); });
+    const geometries = new Set(), materials = new Set();
+    game.matchGroup.traverse((o) => {
+      if (o.geometry && !o.userData.shared) geometries.add(o.geometry);
+      if (o.material) for (const material of Array.isArray(o.material) ? o.material : [o.material]) materials.add(material);
+      if (o.isInstancedMesh) o.dispose();
+    });
+    for (const geometry of geometries) geometry.dispose();
+    for (const material of materials) material.dispose();
   }
   const group = game.matchGroup = new THREE.Group();
   scene.add(group);
@@ -191,7 +199,7 @@ function startMatch(config) {
   game.series = null;
   game.world = new World(game.maze ? game.maze.layout : config.map);
   group.add(game.world.group);
-  scene.background.set(0x0b1320);
+  scene.background.set(0x9fc3ca);
   scene.fog.near = game.maze ? 12 : 45;
   scene.fog.far = game.maze ? 40 : 110;
   game.entities = [];
@@ -270,6 +278,8 @@ function startMatch(config) {
     marker.position.set(game.maze.exit.x, 1.75, game.maze.exit.z);
     group.add(marker);
     game.maze.marker = marker;
+    game.maze.monster = new MazeMonster(game.maze.start);
+    group.add(game.maze.monster.group);
     game.elapsed = 0;
   }
   game.time = game.series?.duration ?? config.duration;
@@ -284,11 +294,11 @@ function startMatch(config) {
   $('paused').hidden = true;
   document.body.classList.add('in-game');
   $('role-label').textContent = humanSeeker ? 'SEEKER' : 'RUNNER';
-  $('objective').textContent = mode === 'maze' ? 'Find the exit. Each player finishes separately.'
+  $('objective').textContent = mode === 'maze' ? 'Find the exit! The slow monster starts following after 12 seconds.'
     : mode === 'tag' ? 'Pass IT on contact. Lowest total IT time wins after 5 rounds.'
     : mode === 'outbreak' ? 'Survive the infection. Highest survival score wins after 3 rounds.'
     : humanSeeker ? 'Freeze every runner before time runs out.' : 'Stay unfrozen until the timer ends.';
-  toast(humanSeeker ? 'Hunt them down!' : 'Hide! The seekers are coming.', 2400);
+  toast(mode === 'maze' ? 'Find the exit before the monster catches you!' : humanSeeker ? 'Hunt them down!' : 'Hide! The seekers are coming.', 2400);
   $('frozen-total').textContent = config.runners;
   $('give-up').hidden = mode !== 'maze' || count !== 1;
   $('next-round').hidden = true;
@@ -371,7 +381,7 @@ function step(dt) {
   for (const e of entities) {
     e.grace = Math.max(0, e.grace - dt);
     let dir = { x: 0, z: 0, mag: 0 }, mul = 1;
-    if (!e.frozen && !e.escaped && !e.gaveUp && !(locked && (e.seeker || game.maze))) {
+    if (!e.frozen && !e.escaped && !e.gaveUp && !e.caught && !(locked && (e.seeker || game.maze))) {
       if (e.human) dir = playerDirection(e);
       else {
         e.think = (e.think ?? Math.random() * 0.1) - dt;
@@ -409,7 +419,7 @@ function step(dt) {
 
   if (game.maze) {
     for (const e of entities) {
-      if (!e.escaped && !e.gaveUp && Math.hypot(e.pos.x - game.maze.exit.x, e.pos.z - game.maze.exit.z) < 1.4) {
+      if (!e.escaped && !e.gaveUp && !e.caught && Math.hypot(e.pos.x - game.maze.exit.x, e.pos.z - game.maze.exit.z) < 1.4) {
         e.escaped = true;
         e.finishTime = game.elapsed;
         e.vel.x = e.vel.z = 0;
@@ -417,7 +427,15 @@ function step(dt) {
         toast(`Escaped in ${e.finishTime.toFixed(1)}s!`, 2500, e);
       }
     }
-    if (entities.every((e) => e.escaped || e.gaveUp)) endMaze();
+    if (!locked) for (const e of game.maze.monster.update(dt, world, entities)) {
+      e.caught = true;
+      e.vel.x = e.vel.z = 0;
+      e.player.pane.giveUp.hidden = true;
+      if (players.length === 1) $('give-up').hidden = true;
+      toast('Caught by the monster!', 2500, e);
+      sfx.lose();
+    }
+    if (entities.every((e) => e.escaped || e.gaveUp || e.caught)) endMaze();
     return;
   }
 
@@ -547,18 +565,18 @@ function endMaze() {
   $('result-tag').textContent = 'MAZE DASH';
   $('result-title').textContent = finishers.length ? 'Maze complete!' : 'Maze ended';
   $('result-description').textContent = game.entities.map((e) =>
-    `${playerName(e)}: ${e.escaped ? `${e.finishTime.toFixed(1)}s` : 'gave up'}`).join(' · ');
+    `${playerName(e)}: ${e.escaped ? `${e.finishTime.toFixed(1)}s` : e.caught ? 'caught' : 'gave up'}`).join(' · ');
   $('next-round').hidden = true;
   $('replay').hidden = false;
   $('result').hidden = false;
 }
 
 function giveUp(e) {
-  if (!['playing', 'paused'].includes(game.state) || !game.maze || !e || e.escaped || e.gaveUp) return;
+  if (!['playing', 'paused'].includes(game.state) || !game.maze || !e || e.escaped || e.gaveUp || e.caught) return;
   e.gaveUp = true;
   e.vel.x = e.vel.z = 0;
   e.player.pane.giveUp.hidden = true;
-  if (game.entities.every((player) => player.escaped || player.gaveUp)) endMaze();
+  if (game.entities.every((player) => player.escaped || player.gaveUp || player.caught)) endMaze();
   else if (game.state === 'paused') updateMazeGiveUps();
 }
 
@@ -639,7 +657,7 @@ function updateHud() {
   $('score-label').textContent = game.maze ? 'ESCAPED' : game.series?.mode === 'tag' ? 'ROUND' : game.series?.mode === 'outbreak' ? 'INFECTED' : 'FROZEN';
   $('role-label').textContent = game.maze ? 'MAZE' : game.player.seeker ? 'SEEKER' : 'RUNNER';
   for (const p of players) {
-    const state = game.maze ? (p.ent.escaped ? 'Escaped' : p.ent.gaveUp ? 'Gave up' : 'Find exit')
+    const state = game.maze ? (p.ent.escaped ? 'Escaped' : p.ent.caught ? 'Caught' : p.ent.gaveUp ? 'Gave up' : 'Find exit')
       : p.ent.seeker ? 'IT' : p.ent.frozen ? `Frozen${p.ent.infection > 0 ? ` ${p.ent.infection.toFixed(1)}s` : ''}` : 'Runner';
     const score = game.series && game.series.scores.has(p.ent.id) ? ` · ${game.series.scores.get(p.ent.id).toFixed(1)}s` : '';
     p.pane.tag.textContent = `P${p.index + 1} · ${state}${score}`;
@@ -692,7 +710,10 @@ function drawViews() {
     }
     for (const pr of game.particles) pr.m.visible = !!pr.seenBy[idx];
     for (const q of pool) q.mark.visible = q === p && q.markOn;
-    if (game.maze) game.maze.marker.visible = game.world.sees(p.ent.pos, game.maze.exit);
+    if (game.maze) {
+      game.maze.marker.visible = game.world.sees(p.ent.pos, game.maze.exit);
+      game.maze.monster.group.visible = game.world.sees(p.ent.pos, game.maze.monster.pos);
+    }
     if (game.world && p.ent) p.rig.applyFade(game.world);
     const r = p.rect, y = innerHeight - r.y - r.h;
     renderer.setViewport(r.x, y, r.w, r.h);
@@ -708,7 +729,7 @@ function tapControl(p, poll, dt) {
   if (poll.touching) {
     p.tap.target = null;
     p.markOn = false;
-    if (!poll.aim?.touch || e.frozen || e.escaped || e.gaveUp) return null;
+    if (!poll.aim?.touch || e.frozen || e.escaped || e.gaveUp || e.caught) return null;
     const r = p.rect;
     const projected = new THREE.Vector3(e.pos.x, 0.9, e.pos.z).project(p.camera);
     const character = { x: r.x + (projected.x + 1) * r.w / 2, y: r.y + (1 - projected.y) * r.h / 2 };
@@ -837,7 +858,7 @@ const keyHint = (i, n) => (n === 1 ? '' : i === 0 ? 'WASD' : i === 1 ? 'Arrows' 
 // Per-player control rows (movement, camera, screen position) for the menu and pause dialogs.
 const SCHEMES = [['direct', 'Joystick · keys · gamepad'], ['tap', 'Tap / click to move']];
 const CAMERAS = [['separate', 'Camera: you steer'], ['follow', 'Camera: follows you']];
-const appearanceKeys = ['skin', 'hair', 'shirt', 'pants', 'shoe', 'accent', 'style'];
+const appearanceKeys = ['skin', 'hair', 'shirt', 'pants', 'shoe', 'accent', 'style', 'top', 'bottom'];
 let studio;
 function showAppearance() {
   const index = +$('appearance-player').value;
@@ -947,7 +968,7 @@ function updateModeOptions() {
   $('rescue-option').hidden = mode !== 'freeze';
   $('mode-help').textContent = mode === 'tag' ? 'Five 40-second rounds. The first player choosing Seeker starts as IT; otherwise a CPU starts. Lowest total IT time wins.'
     : mode === 'outbreak' ? 'Three 120-second rounds. Rescue frozen runners before infection spreads; most survival time wins.'
-    : mode === 'maze' ? 'Explore the maze and find the glowing exit. Each player finishes separately or can give up.'
+    : mode === 'maze' ? 'Find the glowing exit before the slow monster catches you. It starts following after 12 seconds. Each player finishes separately.'
     : 'Tag by touching. Walls block sight. Rescue frozen teammates by staying nearby.';
 }
 $('opt-mode').addEventListener('change', updateModeOptions);
@@ -971,7 +992,7 @@ function updateMazeGiveUps() {
   container.hidden = !game.maze;
   if (!game.maze) return;
   for (const p of players) {
-    if (p.ent.escaped || p.ent.gaveUp) continue;
+    if (p.ent.escaped || p.ent.gaveUp || p.ent.caught) continue;
     const button = document.createElement('button');
     button.textContent = `P${p.index + 1} give up maze`;
     button.addEventListener('click', () => giveUp(p.ent));
