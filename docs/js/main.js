@@ -1,7 +1,8 @@
 import * as THREE from 'three';
 import { World, LAYOUTS, SIZE, HALF } from './world.js?v=world-refresh';
-import { Character, RUNNER_COLORS, SEEKER_COLOR, normalizeAppearance } from './character.js?v=world-refresh';
-import { CharacterStudio } from './studio.js?v=world-refresh';
+import { Character, RUNNER_COLORS, SEEKER_COLOR, normalizeAppearance } from './character.js?v=avatar';
+import { Avatar, loadAvatar } from './avatar.js?v=avatar';
+import { CharacterStudio } from './studio.js?v=avatar';
 import { ChaseCamera } from './camera.js?v=world-refresh';
 import { Input } from './input.js?v=controller-menu';
 import { Brain, LEVELS } from './ai.js';
@@ -161,7 +162,7 @@ function setPlayers(n) {
   layout();
 }
 
-function startMatch(config) {
+function startMatch(config, avatarAsset = null) {
   if (game.matchGroup) {
     scene.remove(game.matchGroup);
     const geometries = new Set(), materials = new Set();
@@ -169,9 +170,10 @@ function startMatch(config) {
       if (o.geometry && !o.userData.shared) geometries.add(o.geometry);
       if (o.material) for (const material of Array.isArray(o.material) ? o.material : [o.material]) materials.add(material);
       if (o.isInstancedMesh) o.dispose();
+      if (o.isSkinnedMesh) o.skeleton.dispose();
     });
     for (const geometry of geometries) geometry.dispose();
-    for (const material of materials) material.dispose();
+    for (const material of materials) if (!material.userData.avatarShared) material.dispose();
   }
   const group = game.matchGroup = new THREE.Group();
   scene.add(group);
@@ -221,7 +223,8 @@ function startMatch(config) {
   }
   let id = 0;
   const make = (seeker, p, human, playerIndex = 0) => {
-    const char = new Character({ seed: id + 1, seeker, appearance: human ? settings.appearances[playerIndex] : undefined });
+    const options = { seed: id + 1, seeker, appearance: human ? settings.appearances[playerIndex] : undefined };
+    const char = human && options.appearance.model === 'supplied' ? new Avatar(options, avatarAsset) : new Character(options);
     char.group.position.set(p.x, 0, p.z);
     char.yaw = seeker ? 0 : Math.random() * Math.PI * 2;
     const e = {
@@ -681,7 +684,7 @@ function render(dt, cam) {
     e.seenBy = seenByAll(e);
     e.char.group.position.set(e.pos.x, 0, e.pos.z);
     const celebrating = game.state === 'ended' && e.joyTarget;
-    e.char.update(dt, e.vel, { frozen: e.frozen && game.state !== 'ended', thaw: e.thaw, reach: nearTarget && game.countdown <= 0 ? 1 : 0, joy: celebrating ? 1 : 0 });
+    e.char.update(dt, e.vel, { frozen: e.frozen && game.state !== 'ended', caught: e.caught, thaw: e.thaw, reach: nearTarget && game.countdown <= 0 ? 1 : 0, joy: celebrating ? 1 : 0 });
     e.mark.position.set(e.pos.x, 0.03, e.pos.z);
     e.mark.material.opacity = (e.human ? 0.45 + Math.sin(performance.now() / 250) * 0.12 : e.grace > 0 ? 0.6 : 0.22);
     e.thawOn = e.frozen && e.thaw > 0.02;
@@ -812,8 +815,30 @@ for (const p of pool) p.input.onPause = () => pause(game.state === 'playing');
 addEventListener('blur', () => pause(true));
 document.addEventListener('visibilitychange', () => document.hidden && pause(true));
 
-$('start').addEventListener('click', () => { sfx.unlock(); startMatch(readConfig()); });
-$('replay').addEventListener('click', () => { sfx.unlock(); startMatch(game.config); });
+let matchRequest = 0;
+async function requestMatch(config, quick = false) {
+  const request = ++matchRequest;
+  const needsAvatar = settings.appearances.slice(0, config.players).some((appearance) => appearance.model === 'supplied');
+  let asset = null;
+  if (needsAvatar) {
+    setAvatarStatus('Loading the new character…');
+    try { asset = await loadAvatar(); }
+    catch (error) {
+      if (request === matchRequest) setAvatarStatus('Character could not load. Check your connection and try again.');
+      console.error('Character loading failed:', error);
+      return;
+    }
+    if (request !== matchRequest) return;
+    setAvatarStatus('');
+  }
+  startMatch(config, asset);
+  if (quick) toast(`Quick play: ${{ freeze: 'Freeze Tag', tag: 'Timed Tag', outbreak: 'Freeze Outbreak', maze: 'Maze Dash' }[config.mode]}`, 2500);
+}
+function setAvatarStatus(message) {
+  for (const el of document.querySelectorAll('.avatar-status, #avatar-status')) el.textContent = message;
+}
+$('start').addEventListener('click', () => { sfx.unlock(); requestMatch(readConfig()); });
+$('replay').addEventListener('click', () => { sfx.unlock(); requestMatch(game.config); });
 $('next-round').addEventListener('click', nextSeriesRound);
 $('give-up').addEventListener('click', () => giveUp(game.player));
 $('result-menu').addEventListener('click', toMenu);
@@ -837,8 +862,7 @@ $('quick-play').addEventListener('click', () => {
     mazeSize: pick([5, 7]), level: pick(['kid', 'scout']), rescue: true,
   };
   sfx.unlock();
-  startMatch(config);
-  toast(`Quick play: ${{ freeze: 'Freeze Tag', tag: 'Timed Tag', outbreak: 'Freeze Outbreak', maze: 'Maze Dash' }[mode]}`, 2500);
+  requestMatch(config, true);
 });
 $('auto-cam').addEventListener('click', (e) => {
   const on = !rig.autoFollow;
@@ -858,12 +882,14 @@ const keyHint = (i, n) => (n === 1 ? '' : i === 0 ? 'WASD' : i === 1 ? 'Arrows' 
 // Per-player control rows (movement, camera, screen position) for the menu and pause dialogs.
 const SCHEMES = [['direct', 'Joystick · keys · gamepad'], ['tap', 'Tap / click to move']];
 const CAMERAS = [['separate', 'Camera: you steer'], ['follow', 'Camera: follows you']];
-const appearanceKeys = ['skin', 'hair', 'shirt', 'pants', 'shoe', 'accent', 'style', 'top', 'bottom'];
+const appearanceKeys = ['skin', 'hair', 'shirt', 'pants', 'shoe', 'accent', 'style', 'top', 'bottom', 'model'];
 let studio;
 function showAppearance() {
   const index = +$('appearance-player').value;
   const appearance = settings.appearances[index];
   for (const key of appearanceKeys) $(`appearance-${key}`).value = appearance[key];
+  $('custom-appearance').hidden = appearance.model !== 'custom';
+  $('avatar-note').hidden = appearance.model !== 'supplied';
   if (studio) studio.show(appearance);
 }
 function updateAppearancePlayers() {
@@ -1034,6 +1060,8 @@ $('fullscreen').addEventListener('click', () => {
   if (document.fullscreenElement) document.exitFullscreen(); else document.documentElement.requestFullscreen?.();
 });
 function toMenu() {
+  matchRequest++;
+  setAvatarStatus('');
   game.state = 'menu';
   setPlayers(1);
   applySettings();
@@ -1042,6 +1070,8 @@ function toMenu() {
   $('quick-play').focus();
 }
 function toHome() {
+  matchRequest++;
+  setAvatarStatus('');
   $('menu').hidden = true;
   $('home').hidden = false;
   $('quick-play').focus();

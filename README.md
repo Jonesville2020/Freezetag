@@ -23,6 +23,8 @@ The home menu offers **Quick play**, which chooses a random mode and match optio
 
 Open **Character studio** in match setup to choose from hairstyles and hats, tops, pants, shorts or a skirt, and colors for skin, hair, clothes, shoes and accents. Each local player's look is saved on the device and stays the same when their role changes. Existing saved looks retain their colors and hair.
 
+Character studio also offers the supplied **New character**, with imported idle, walking, running, tag, alert, recovery and celebration animations. Its hair, face and clothing are baked into a single model and cannot be customized independently; choose **Custom character** to use the original customization options. Each player can choose separately. The optimized character downloads when first selected or used; a connection is needed to load it.
+
 Controls (change in Match setup or the pause menu; saved on the device):
 - **Movement: Joystick · WASD · gamepad** — WASD/arrows, left-thumb floating joystick, or controller. Drag, Q/E or right stick rotate the camera.
 - **Movement: Tap / click to move** — tap or click a spot to walk there. Hold a finger on the screen to keep moving in that direction relative to your character; lift it to stop. Rotate with right-drag (mouse), two-finger drag (touch) or the on-screen ⟲ ⟳ buttons; pinch or wheel to zoom. Keyboard/gamepad still work and cancel the destination.

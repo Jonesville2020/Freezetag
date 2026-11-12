@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#0b1320">
 <title>Freeze Tag 3D</title>
-<link rel="stylesheet" href="style.css?v=world-refresh">
+<link rel="stylesheet" href="style.css?v=avatar">
 <script type="importmap">{"imports":{"three":"./vendor/three.module.min.js"}}</script>
 </head>
 <body>
@@ -41,6 +41,7 @@
     </div>
     <p class="small">Controller: left stick / D-pad to move through options, A to select, B to go back. Left / right changes a setting.</p>
     <p class="small audio-status" role="status"></p>
+    <p class="small avatar-status" role="status"></p>
   </div>
 </section>
 
@@ -71,6 +72,8 @@
         <canvas id="character-preview" width="230" height="190" aria-label="Character preview"></canvas>
         <div class="studio-controls">
           <label>Editing<select id="appearance-player"><option value="0">Player 1</option></select></label>
+          <label>Character<select id="appearance-model"><option value="custom">Custom character</option><option value="supplied">New character</option></select></label>
+          <div id="custom-appearance">
           <label>Hair / hat<select id="appearance-style"><option value="short">Short hair</option><option value="side">Side swept</option><option value="spiky">Spiky</option><option value="bob">Bob</option><option value="long">Long</option><option value="ponytail">Ponytail</option><option value="pigtails">Pigtails</option><option value="buns">Double buns</option><option value="curly">Curly</option><option value="bun">Bun</option><option value="cap">Cap</option><option value="beanie">Beanie</option><option value="none">Bald</option></select></label>
           <label>Top<select id="appearance-top"><option value="tee">T-shirt</option><option value="striped">Striped shirt</option><option value="hoodie">Hoodie</option><option value="jacket">Jacket</option></select></label>
           <label>Bottoms<select id="appearance-bottom"><option value="pants">Pants</option><option value="shorts">Shorts</option><option value="skirt">Skirt</option></select></label>
@@ -83,6 +86,9 @@
             <label>Accent<input type="color" id="appearance-accent"></label>
           </div>
           <button type="button" class="secondary" id="appearance-reset">Reset look</button>
+          </div>
+          <p id="avatar-note" class="small" hidden>This character has a fixed look. Hair, clothing and face options are available on the custom character.</p>
+          <p id="avatar-status" class="small" role="status" aria-live="polite"></p>
         </div>
       </div>
       <p class="small">Looks are saved on this device for each player. Team markers show who is IT.</p>
@@ -90,6 +96,7 @@
     <label class="check" id="rescue-option"><input type="checkbox" id="opt-rescue" checked><span>Runners can thaw frozen teammates (stay close for 1 second)</span></label>
     <button id="start" class="primary">Enter the arena →</button>
     <button id="setup-back" type="button" class="secondary">Back to home</button>
+    <p class="small avatar-status" role="status"></p>
     <p class="small" id="mode-help">Tag by touching. Move with WASD / arrows, left-thumb joystick or a gamepad. Rotate the camera by dragging, Q/E, or the right stick.</p>
     <p class="small">In tap / click mode, hold your finger in the direction you want to move; lift it to stop. Tap briefly to move to a spot.</p>
   </form>
@@ -128,9 +135,10 @@
 <section id="result" class="card-dialog" hidden>
   <div class="card">
     <span class="eyebrow" id="result-tag">ROUND OVER</span><h1 id="result-title"></h1><p id="result-description"></p>
+    <p class="small avatar-status" role="status"></p>
     <div class="actions"><button id="result-menu" class="secondary">Home menu</button><button id="next-round" class="primary" hidden>Next round →</button><button id="replay" class="primary">Play again →</button></div>
   </div>
 </section>
-<script type="module" src="js/main.js?v=world-refresh"></script>
+<script type="module" src="js/main.js?v=avatar"></script>
 </body>
 </html>

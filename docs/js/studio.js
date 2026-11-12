@@ -1,5 +1,6 @@
 import * as THREE from 'three';
-import { Character, normalizeAppearance } from './character.js?v=world-refresh';
+import { Character, normalizeAppearance } from './character.js?v=avatar';
+import { Avatar, loadAvatar } from './avatar.js?v=avatar';
 
 export class CharacterStudio {
   constructor(canvas) {
@@ -20,13 +21,30 @@ export class CharacterStudio {
     this.scene.add(platform);
   }
 
-  show(appearance) {
+  async show(appearance) {
+    const request = this.request = (this.request ?? 0) + 1;
     if (this.character) {
       this.scene.remove(this.character.group);
+      this.character.group.traverse((object) => { if (object.isSkinnedMesh) object.skeleton.dispose(); });
       for (const material of Object.values(this.character.mats)) material.dispose();
       this.character.ice.material.dispose();
+      this.character = null;
     }
-    this.character = new Character({ appearance: normalizeAppearance(appearance) });
+    const look = normalizeAppearance(appearance);
+    let asset;
+    if (look.model === 'supplied') {
+      document.getElementById('avatar-status').textContent = 'Loading the new character…';
+      try { asset = await loadAvatar(); }
+      catch (error) {
+        if (request === this.request) document.getElementById('avatar-status').textContent = 'Character could not load. Check your connection and try again.';
+        console.error('Character preview failed:', error);
+        return;
+      }
+      if (request !== this.request) return;
+      document.getElementById('avatar-status').textContent = '';
+    } else document.getElementById('avatar-status').textContent = '';
+    if (request !== this.request) return;
+    this.character = asset ? new Avatar({ appearance: look }, asset) : new Character({ appearance: look });
     this.scene.add(this.character.group);
     this.character.update(1 / 60, { x: 0, z: 0 });
     this.renderer.render(this.scene, this.camera);
