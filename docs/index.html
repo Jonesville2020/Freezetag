@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#0b1320">
 <title>Freeze Tag 3D</title>
-<link rel="stylesheet" href="style.css?v=avatar">
+<link rel="stylesheet" href="style.css?v=avatar3">
 <script type="importmap">{"imports":{"three":"./vendor/three.module.min.js"}}</script>
 </head>
 <body>
@@ -74,9 +74,10 @@
           <label>Editing<select id="appearance-player"><option value="0">Player 1</option></select></label>
           <label>Character<select id="appearance-model"><option value="custom">Custom character</option><option value="supplied">New character</option></select></label>
           <div id="custom-appearance">
-          <label>Hair / hat<select id="appearance-style"><option value="short">Short hair</option><option value="side">Side swept</option><option value="spiky">Spiky</option><option value="bob">Bob</option><option value="long">Long</option><option value="ponytail">Ponytail</option><option value="pigtails">Pigtails</option><option value="buns">Double buns</option><option value="curly">Curly</option><option value="bun">Bun</option><option value="cap">Cap</option><option value="beanie">Beanie</option><option value="none">Bald</option></select></label>
-          <label>Top<select id="appearance-top"><option value="tee">T-shirt</option><option value="striped">Striped shirt</option><option value="hoodie">Hoodie</option><option value="jacket">Jacket</option></select></label>
-          <label>Bottoms<select id="appearance-bottom"><option value="pants">Pants</option><option value="shorts">Shorts</option><option value="skirt">Skirt</option></select></label>
+          <label>Hair / hat<select id="appearance-style"><option value="short">Short hair</option><option value="side">Side swept</option><option value="spiky">Spiky</option><option value="bob">Bob</option><option value="long">Long</option><option value="ponytail">Ponytail</option><option value="pigtails">Pigtails</option><option value="buns">Double buns</option><option value="curly">Curly</option><option value="bun">Bun</option><option value="cap">Cap</option><option value="beanie">Beanie</option><option value="none">Bald</option><option value="afro" class="avatar-only">Afro</option><option value="mohawk" class="avatar-only">Mohawk</option><option value="braid" class="avatar-only">Braid</option></select></label>
+          <label>Top<select id="appearance-top"><option value="tee">T-shirt</option><option value="striped">Striped shirt</option><option value="hoodie">Hoodie</option><option value="jacket">Jacket</option><option value="tank" class="avatar-only">Tank top</option><option value="sweater" class="avatar-only">Sweater</option><option value="jersey" class="avatar-only">Jersey</option></select></label>
+          <label>Bottoms<select id="appearance-bottom"><option value="pants">Pants</option><option value="shorts">Shorts</option><option value="skirt">Skirt</option><option value="joggers" class="avatar-only">Joggers</option></select></label>
+          <label>Accessory<select id="appearance-accessory"><option value="none">None</option><option value="glasses">Glasses</option><option value="sunglasses">Sunglasses</option><option value="headphones">Headphones</option><option value="backpack">Backpack</option><option value="scarf">Scarf</option><option value="wristbands">Wristbands</option><option value="cape">Cape</option></select></label>
           <div class="color-grid">
             <label>Skin<input type="color" id="appearance-skin"></label>
             <label>Hair<input type="color" id="appearance-hair"></label>
@@ -87,8 +88,7 @@
           </div>
           <button type="button" class="secondary" id="appearance-reset">Reset look</button>
           </div>
-          <p id="avatar-note" class="small" hidden>This character has a fixed look. Hair, clothing and face options are available on the custom character.</p>
-          <p id="avatar-status" class="small" role="status" aria-live="polite"></p>
+                    <p id="avatar-status" class="small" role="status" aria-live="polite"></p>
         </div>
       </div>
       <p class="small">Looks are saved on this device for each player. Team markers show who is IT.</p>
@@ -139,6 +139,6 @@
     <div class="actions"><button id="result-menu" class="secondary">Home menu</button><button id="next-round" class="primary" hidden>Next round →</button><button id="replay" class="primary">Play again →</button></div>
   </div>
 </section>
-<script type="module" src="js/main.js?v=avatar"></script>
+<script type="module" src="js/main.js?v=avatar3"></script>
 </body>
 </html>

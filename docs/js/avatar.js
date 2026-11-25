@@ -1,7 +1,15 @@
 import * as THREE from 'three';
 import { GLTFLoader } from '../vendor/addons/loaders/GLTFLoader.js';
 import { clone } from '../vendor/addons/utils/SkeletonUtils.js';
-import { Character } from './character.js?v=avatar';
+import { Character, SEEKER_COLOR, normalizeAppearance } from './character.js?v=avatar3';
+import { applyColors } from './avatar-color.js?v=avatar3';
+import { buildHair } from './avatar-hair.js?v=avatar3';
+import { buildTop, buildBottom } from './avatar-clothes.js?v=avatar3';
+import { buildAccessory } from './avatar-accessories.js?v=avatar3';
+
+const LOCOMOTION = ['Idle_9', 'Walking', 'Running'];
+const WALK_STRIDE = 1.45, RUN_STRIDE = 2.2, MAX_CADENCE = 1.9, FADE_RATE = 9;
+const smooth = (x, a, b) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
 
 let avatarPromise;
 export function loadAvatar() {
@@ -39,48 +47,107 @@ export class Avatar extends Character {
       }
     });
     this.group.add(this.model);
+    this.look = normalizeAppearance(options.appearance);
+    for (const build of [applyColors, buildTop, buildBottom, buildHair, buildAccessory]) build(this);
+    if (options.seeker) {
+      // The baked model has no team colour, so mark the seeker with a red beacon.
+      this.beacon = new THREE.Mesh(new THREE.ConeGeometry(0.11, 0.22, 4),
+        new THREE.MeshBasicMaterial({ color: SEEKER_COLOR }));
+      this.beacon.rotation.x = Math.PI;
+      this.beacon.position.y = 2.15;
+      this.group.add(this.beacon);
+    }
     this.mixer = new THREE.AnimationMixer(this.model);
     this.actions = Object.fromEntries(asset.animations.map((clip) => [clip.name, this.mixer.clipAction(clip)]));
     this.current = null;
     this.wasFrozen = false;
     this.recovering = false;
+    this.stridePhase = 0;
+    this.weights = {};
+    for (const [name, action] of Object.entries(this.actions)) {
+      this.weights[name] = 0;
+      action.setEffectiveWeight(0);
+      if (LOCOMOTION.includes(name)) { action.play(); action.timeScale = 0; }
+    }
     this.mixer.addEventListener('finished', (event) => {
       if (event.action === this.actions.Stand_Up2) this.recovering = false;
     });
     this.update(0, { x: 0, z: 0 });
+    for (const name of LOCOMOTION) this.weights[name] = name === 'Idle_9' ? 1 : 0;
+    this.applyWeights(0);
   }
 
-  play(name, once = false) {
-    if (this.current === name) return;
-    const next = this.actions[name];
-    if (!next) throw new Error(`Missing character animation: ${name}`);
-    const previous = this.current && this.actions[this.current];
-    next.reset().setLoop(once ? THREE.LoopOnce : THREE.LoopRepeat, once ? 1 : Infinity);
-    next.clampWhenFinished = once;
-    next.enabled = true;
-    next.play();
-    if (previous) { previous.crossFadeTo(next, 0.15, false); }
-    this.current = name;
+  // Locomotion is blended by speed on a shared stride phase so feet stay in step
+  // across idle/walk/run; one-shot reactions fade in over it.
+  setShot(name) {
+    if (this.shot === name) return;
+    if (name) {
+      const action = this.actions[name];
+      if (!action) throw new Error(`Missing character animation: ${name}`);
+      action.reset().setLoop(THREE.LoopOnce, 1);
+      action.clampWhenFinished = true;
+      action.enabled = true;
+      action.timeScale = 1;
+      action.setEffectiveWeight(0);
+      action.play();
+      this.weights[name] = 0;
+    }
+    this.shot = name;
+  }
+
+  applyWeights(dt) {
+    const step = Math.min(1, dt * FADE_RATE);
+    const targets = {};
+    for (const name of Object.keys(this.actions)) targets[name] = 0;
+    if (this.shot) targets[this.shot] = 1;
+    const loco = 1 - (this.shot ? 1 : 0);
+    const speed = this.moveSpeed;
+    const move = smooth(speed, 0.2, 1.0);
+    const run = smooth(speed, 2.2, 4.0);
+    targets.Idle_9 = loco * (1 - move);
+    targets.Walking = loco * move * (1 - run);
+    targets.Running = loco * move * run;
+    let total = 0;
+    for (const name of Object.keys(this.actions)) {
+      const w = this.weights[name] += (targets[name] - this.weights[name]) * (dt === 0 ? 1 : step);
+      total += w;
+    }
+    for (const [name, action] of Object.entries(this.actions)) {
+      const w = total > 1 ? this.weights[name] / total : this.weights[name];
+      action.setEffectiveWeight(w);
+      if (!LOCOMOTION.includes(name)) {
+        action.enabled = this.shot === name || w > 0.002;
+      }
+    }
   }
 
   update(dt, velocity, state = {}) {
     super.update(dt, velocity, state);
     if (this.wasFrozen && !state.frozen) this.recovering = true;
     this.wasFrozen = Boolean(state.frozen);
+    this.moveSpeed = Math.hypot(velocity.x, velocity.z);
+    let shot = null;
     if (state.frozen || state.caught) {
       this.recovering = false;
-      this.play('Alert', true);
+      shot = 'Alert';
     } else if (state.joy) {
       this.recovering = false;
-      this.play('Victory_Cheer', true);
-    } else if (this.recovering) {
-      this.play('Stand_Up2', true);
-    } else if (state.reach) {
-      this.play('Touch_and_Run', true);
-    } else {
-      const speed = Math.hypot(velocity.x, velocity.z);
-      this.play(speed > 3.6 ? 'Running' : speed > 0.25 ? 'Walking' : 'Idle_9');
-    }
+      shot = 'Victory_Cheer';
+    } else if (this.recovering) shot = 'Stand_Up2';
+    else if (state.reach) shot = 'Touch_and_Run';
+    this.setShot(shot);
+    this.current = shot ?? (this.moveSpeed > 3.6 ? 'Running' : this.moveSpeed > 0.25 ? 'Walking' : 'Idle_9');
+
+    // Cadence follows ground speed so feet do not skate; capped so sprints stay readable.
+    const run = smooth(this.moveSpeed, 2.2, 4.0);
+    const stride = WALK_STRIDE + (RUN_STRIDE - WALK_STRIDE) * run;
+    this.stridePhase = (this.stridePhase + dt * Math.min(this.moveSpeed / stride, MAX_CADENCE)) % 1;
+    this.actions.Walking.time = this.stridePhase * this.actions.Walking.getClip().duration;
+    this.actions.Running.time = this.stridePhase * this.actions.Running.getClip().duration;
+    const idle = this.actions.Idle_9;
+    idle.time = (idle.time + dt) % idle.getClip().duration;
+    this.applyWeights(dt);
     this.mixer.update(dt);
+    if (this.beacon) this.beacon.position.y = 2.15 + Math.sin(performance.now() / 250) * 0.05;
   }
 }

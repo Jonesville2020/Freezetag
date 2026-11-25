@@ -1,8 +1,8 @@
 import * as THREE from 'three';
 import { World, LAYOUTS, SIZE, HALF } from './world.js?v=world-refresh';
-import { Character, RUNNER_COLORS, SEEKER_COLOR, normalizeAppearance } from './character.js?v=avatar';
-import { Avatar, loadAvatar } from './avatar.js?v=avatar';
-import { CharacterStudio } from './studio.js?v=avatar';
+import { Character, RUNNER_COLORS, SEEKER_COLOR, normalizeAppearance } from './character.js?v=avatar3';
+import { Avatar, loadAvatar } from './avatar.js?v=avatar3';
+import { CharacterStudio } from './studio.js?v=avatar3';
 import { ChaseCamera } from './camera.js?v=world-refresh';
 import { Input } from './input.js?v=controller-menu';
 import { Brain, LEVELS } from './ai.js';
@@ -882,14 +882,16 @@ const keyHint = (i, n) => (n === 1 ? '' : i === 0 ? 'WASD' : i === 1 ? 'Arrows' 
 // Per-player control rows (movement, camera, screen position) for the menu and pause dialogs.
 const SCHEMES = [['direct', 'Joystick · keys · gamepad'], ['tap', 'Tap / click to move']];
 const CAMERAS = [['separate', 'Camera: you steer'], ['follow', 'Camera: follows you']];
-const appearanceKeys = ['skin', 'hair', 'shirt', 'pants', 'shoe', 'accent', 'style', 'top', 'bottom', 'model'];
+const appearanceKeys = ['skin', 'hair', 'shirt', 'pants', 'shoe', 'accent', 'style', 'top', 'bottom', 'accessory', 'model'];
 let studio;
 function showAppearance() {
   const index = +$('appearance-player').value;
   const appearance = settings.appearances[index];
   for (const key of appearanceKeys) $(`appearance-${key}`).value = appearance[key];
-  $('custom-appearance').hidden = appearance.model !== 'custom';
-  $('avatar-note').hidden = appearance.model !== 'supplied';
+  for (const option of document.querySelectorAll('#custom-appearance .avatar-only')) {
+    option.hidden = option.disabled = appearance.model !== 'supplied';
+  }
+  $('appearance-accessory').closest('label').hidden = appearance.model !== 'supplied';
   if (studio) studio.show(appearance);
 }
 function updateAppearancePlayers() {
@@ -905,7 +907,7 @@ document.querySelector('.studio').addEventListener('toggle', (event) => {
   if (event.currentTarget.open && !studio) {
     studio = new CharacterStudio($('character-preview'));
     showAppearance();
-  }
+  } else if (event.currentTarget.open) studio?.animate();
 });
 for (const key of appearanceKeys) {
   $(`appearance-${key}`).addEventListener('input', (event) => {

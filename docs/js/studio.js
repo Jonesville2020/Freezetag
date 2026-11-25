@@ -1,6 +1,6 @@
 import * as THREE from 'three';
-import { Character, normalizeAppearance } from './character.js?v=avatar';
-import { Avatar, loadAvatar } from './avatar.js?v=avatar';
+import { Character, normalizeAppearance } from './character.js?v=avatar3';
+import { Avatar, loadAvatar } from './avatar.js?v=avatar3';
 
 export class CharacterStudio {
   constructor(canvas) {
@@ -48,5 +48,25 @@ export class CharacterStudio {
     this.scene.add(this.character.group);
     this.character.update(1 / 60, { x: 0, z: 0 });
     this.renderer.render(this.scene, this.camera);
+    this.animate();
+  }
+
+  // Idle-animate the preview only while it is visible.
+  animate() {
+    if (this.running) return;
+    this.running = true;
+    let last = performance.now();
+    const tick = (now) => {
+      if (!this.character || !this.renderer.domElement.isConnected || !this.renderer.domElement.offsetParent) {
+        this.running = false;
+        return;
+      }
+      const dt = Math.min((now - last) / 1000, 0.1);
+      last = now;
+      this.character.update(dt, { x: 0, z: 0 });
+      this.renderer.render(this.scene, this.camera);
+      requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
   }
 }

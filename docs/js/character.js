@@ -28,17 +28,26 @@ export const SEEKER_COLOR = 0xe5384c;
 
 export const DEFAULT_APPEARANCE = {
   skin: '#d9a47c', hair: '#2b1b12', shirt: '#3da9fc',
-  pants: '#24303f', shoe: '#f4f4f4', accent: '#ff9f43', style: 'short', top: 'tee', bottom: 'pants', model: 'custom',
+  pants: '#24303f', shoe: '#f4f4f4', accent: '#ff9f43', style: 'short', top: 'tee', bottom: 'pants', accessory: 'none', model: 'custom',
 };
 export const HAIR_STYLES = ['short', 'side', 'spiky', 'bob', 'long', 'ponytail', 'pigtails', 'buns', 'curly', 'bun', 'cap', 'beanie', 'none'];
 export const TOP_STYLES = ['tee', 'striped', 'hoodie', 'jacket'];
 export const BOTTOM_STYLES = ['pants', 'shorts', 'skirt'];
+// Extra options for the supplied character only (the procedural one ignores them).
+export const AVATAR_HAIR_STYLES = [...HAIR_STYLES, 'afro', 'mohawk', 'braid'];
+export const AVATAR_TOP_STYLES = [...TOP_STYLES, 'tank', 'sweater', 'jersey'];
+export const AVATAR_BOTTOM_STYLES = [...BOTTOM_STYLES, 'joggers'];
+export const ACCESSORY_STYLES = ['none', 'glasses', 'sunglasses', 'headphones', 'backpack', 'scarf', 'wristbands', 'cape'];
 
 export function normalizeAppearance(value = {}) {
   if (!value || typeof value !== 'object') value = {};
   const result = {};
   for (const [key, fallback] of Object.entries(DEFAULT_APPEARANCE)) {
-    const options = { style: HAIR_STYLES, top: TOP_STYLES, bottom: BOTTOM_STYLES, model: ['custom', 'supplied'] }[key];
+    const supplied = value.model === 'supplied';
+    const options = {
+      style: supplied ? AVATAR_HAIR_STYLES : HAIR_STYLES, top: supplied ? AVATAR_TOP_STYLES : TOP_STYLES,
+      bottom: supplied ? AVATAR_BOTTOM_STYLES : BOTTOM_STYLES, accessory: ACCESSORY_STYLES, model: ['custom', 'supplied'],
+    }[key];
     result[key] = options
       ? (options.includes(value[key]) ? value[key] : fallback)
       : (typeof value[key] === 'string' && /^#[0-9a-f]{6}$/i.test(value[key]) ? value[key] : fallback);
