@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { LAYOUTS } from './maps.js';
 import { buildProp } from './props.js';
+import { buildMazeVisuals, grassTexture } from './maze-decor.js?v=maze2';
 
 export const SIZE = 64;
 export const HALF = SIZE / 2;
@@ -77,19 +78,19 @@ export class World {
     const L = this.layout;
     const floor = new THREE.Mesh(
       new THREE.PlaneGeometry(SIZE, SIZE),
-      new THREE.MeshStandardMaterial({ color: L.floor, roughness: 0.95 }),
+      new THREE.MeshStandardMaterial({ color: L.floor, roughness: 0.95, map: L.maze ? grassTexture() : null }),
     );
     floor.rotation.x = -Math.PI / 2;
     floor.receiveShadow = true;
     this.group.add(floor);
-    const outer = new THREE.Mesh(new THREE.PlaneGeometry(400, 400), new THREE.MeshStandardMaterial({ color: 0x698b77, roughness: 1 }));
+    const outer = new THREE.Mesh(new THREE.PlaneGeometry(400, 400), new THREE.MeshStandardMaterial({ color: L.maze ? 0x3f6a43 : 0x698b77, roughness: 1 }));
     outer.rotation.x = -Math.PI / 2;
     outer.position.y = -0.02;
     outer.receiveShadow = true;
     this.group.add(outer);
 
     const tiles = new THREE.InstancedMesh(new THREE.PlaneGeometry(7.7, 7.7),
-      new THREE.MeshBasicMaterial({ color: L.line, transparent: true, opacity: 0.07, depthWrite: false }), 32);
+      new THREE.MeshBasicMaterial({ color: L.line, transparent: true, opacity: 0.07, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 }), 32);
     const tileTransform = new THREE.Object3D();
     let tile = 0;
     for (let z = 0; z < 8; z++) for (let x = 0; x < 8; x++) {
@@ -99,7 +100,7 @@ export class World {
       tileTransform.updateMatrix();
       tiles.setMatrixAt(tile++, tileTransform.matrix);
     }
-    this.group.add(tiles);
+    if (!L.maze) this.group.add(tiles);
 
     const treeTrunks = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.35, 0.45, 2.8, 8),
       new THREE.MeshStandardMaterial({ color: 0x826957, roughness: 1 }), 32);
@@ -115,20 +116,25 @@ export class World {
       tree.position.y = 3.6; tree.scale.set(1, 1.2, 1); tree.updateMatrix();
       treeCrowns.setMatrixAt(i, tree.matrix);
     }
-    if (L.theme !== 'harbor') this.group.add(treeTrunks, treeCrowns);
+    if (L.theme !== 'harbor' && !L.maze) this.group.add(treeTrunks, treeCrowns);
 
-    const lineMat = new THREE.MeshBasicMaterial({ color: L.line, transparent: true, opacity: 0.22 });
+    // Decals sit a hair above the floor with a depth offset and are wide enough to survive minification, so they don't shimmer.
+    const lineMat = new THREE.MeshBasicMaterial({
+      color: L.line, transparent: true, opacity: 0.2, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2,
+    });
     const addLine = (x, z, w, d) => {
       const m = new THREE.Mesh(new THREE.PlaneGeometry(w, d), lineMat);
       m.rotation.x = -Math.PI / 2;
       m.position.set(x, 0.01, z);
       this.group.add(m);
     };
-    for (let i = -HALF + 8; i < HALF; i += 8) { addLine(i, 0, 0.06, SIZE); addLine(0, i, SIZE, 0.06); }
-    const ring = new THREE.Mesh(new THREE.RingGeometry(5.6, 5.8, 64), lineMat);
-    ring.rotation.x = -Math.PI / 2;
-    ring.position.y = 0.012;
-    this.group.add(ring);
+    if (!L.maze) {
+      for (let i = -HALF + 8; i < HALF; i += 8) { addLine(i, 0, 0.12, SIZE); addLine(0, i, SIZE, 0.12); }
+      const ring = new THREE.Mesh(new THREE.RingGeometry(5.6, 5.8, 64), lineMat);
+      ring.rotation.x = -Math.PI / 2;
+      ring.position.y = 0.012;
+      this.group.add(ring);
+    } else this.group.add(buildMazeVisuals(L));
 
     const wallMat = new THREE.MeshStandardMaterial({ color: L.wall, roughness: 0.8 });
     const trimMat = new THREE.MeshStandardMaterial({ color: L.trim, roughness: 0.8 });
@@ -153,11 +159,12 @@ export class World {
       this.group.add(mesh);
       this.wallMeshes.push(mesh);
     };
-    for (const r of this.wallRects) addWall(r.x, r.z, r.w, r.d);
+    if (!L.maze) for (const r of this.wallRects) addWall(r.x, r.z, r.w, r.d);
 
     for (const z of this.zones) {
       const mat = new THREE.MeshBasicMaterial({
         color: ZONE_COLORS[z.type] ?? 0x888888, map: zoneTexture(), transparent: true, opacity: 0.6, depthWrite: false,
+        polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3,
       });
       const decal = new THREE.Mesh(new THREE.PlaneGeometry(z.w, z.d), mat);
       decal.rotation.x = -Math.PI / 2;

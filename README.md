@@ -13,7 +13,7 @@ Run: `npm start`, then open http://localhost:8000 (needs an HTTP server because 
 - **Freeze Tag:** freeze every runner, or survive until time expires. Rescue is optional.
 - **Timed Tag:** five 40-second rounds. Passing IT freezes the new seeker for 3 seconds and gives the previous seeker 4.25 seconds of protection. Lowest total IT time wins; press Next round between rounds.
 - **Freeze Outbreak:** three 120-second rounds against a Scout seeker. Frozen runners turn into seekers after 8 seconds unless rescued. Scored seekers steal up to 5 seconds per tag; highest survival score wins.
-- **Maze Dash:** explore a randomly generated compact or standard maze and reach the glowing exit. A small, slow monster begins following after a 12-second head start. If it catches a player, that player's run ends; other players can still escape or give up independently.
+- **Maze Dash:** explore a randomly generated compact or standard maze and reach the glowing exit. A fast purple monster with a short reach begins hunting after a 12-second head start (with a rumble warning). It telegraphs a short lunge and is slow afterwards, so you can dodge past it; sprinting slowly outpaces it, walking does not. If it catches a player, that player's run ends; other players can still escape or give up independently.
 
 Local play supports 1–4 players on one device, with separate views and independent line of sight. Choose each player's controls and screen position in setup or pause. Freeze Tag also lets players choose different sides. P1 uses WASD and P2 uses arrows; P3/P4 use touch or controllers. In 3–4-player games, the first controllers are assigned to P3/P4 first, then P1/P2. Two-player games assign them to P1/P2 in order. Connect or activate controllers before the match; controller hardware behavior depends on the device/browser.
 
@@ -34,5 +34,7 @@ Controls (change in Match setup or the pause menu; saved on the device):
 - Wheel, `-`/`=` zoom; Esc/P pause.
 
 Vision: walls are taller than characters, so anyone you have no line of sight to is hidden in the arena and on the minimap (frozen runners are always shown on the minimap). Everything is revealed when the round ends.
+
+Maze layouts (`docs/js/maze-mode.js`) start from a recursive-backtracker maze, then add one or two open 2×2 rooms (with a fountain or statue to circle) and knock out extra walls for loops, while keeping the exit a long walk from the start. `docs/js/maze-decor.js` dresses them as a hedge garden: instanced hedges with stone plinths, corner posts with lanterns or finials, banners, flowers, flagstone floors, a start pad and a glowing exit gate (`createExitMarker`, animated by `marker.userData.update(dt)`). Floor decals use depth offsets, and the cameras use a tighter near/far range, to avoid shimmering.
 
 The maze camera stays below wall height and moves in front of obstructing walls; its height and zoom are fixed during maze play. The maze minimap is explored independently by each player. This 3D version does not yet include the original maze replay codes, online lobbies, campaign, or original wardrobe.

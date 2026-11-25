@@ -1,21 +1,22 @@
 import * as THREE from 'three';
-import { World, LAYOUTS, SIZE, HALF } from './world.js?v=world-refresh';
+import { World, LAYOUTS, SIZE, HALF } from './world.js?v=maze2';
 import { Character, RUNNER_COLORS, SEEKER_COLOR, normalizeAppearance } from './character.js?v=avatar5';
 import { Avatar, loadAvatar } from './avatar.js?v=avatar5';
 import { CharacterStudio } from './studio.js?v=avatar5';
 import { ROSTER, loadAppearance, resolveAppearance, presetOf, assignCpus } from './roster.js?v=avatar5';
 import { NameTag } from './nametag.js?v=avatar5';
-import { ChaseCamera } from './camera.js?v=world-refresh';
+import { ChaseCamera } from './camera.js?v=maze2';
 import { Input } from './input.js?v=controller-menu';
 import { Brain, LEVELS } from './ai.js';
-import { Sfx } from './sfx.js?v=audio1';
+import { Sfx } from './sfx.js?v=audio2';
 import { attachUiSounds } from './ui-sounds.js?v=audio1';
 import { matchIntensity } from './music.js?v=audio1';
 import { MenuController } from './menu-controller.js';
 import { Navigator } from './nav.js';
 import { MAX_PLAYERS, keymapFor, playerRects, slotLabels, assignSlot, normalizeSlots } from './splitscreen.js';
-import { createMaze } from './maze-mode.js?v=world-refresh';
-import { MazeMonster } from './maze-monster.js';
+import { createMaze } from './maze-mode.js?v=maze2';
+import { createExitMarker, MAZE_ATMOSPHERE } from './maze-decor.js?v=maze2';
+import { MazeMonster } from './maze-monster.js?v=monster1';
 import { createSeries, startSeriesRound, updateSeries, seriesTag, standings, seriesLeaders } from './modes.js';
 import { holdDirection } from './steering.js';
 
@@ -107,6 +108,7 @@ sun.castShadow = true;
 sun.shadow.mapSize.set(2048, 2048);
 Object.assign(sun.shadow.camera, { left: -45, right: 45, top: 45, bottom: -45, near: 1, far: 120 });
 sun.shadow.bias = -0.0004;
+sun.shadow.normalBias = 0.03;
 scene.add(sun);
 
 // Position every active player's viewport, camera aspect, touch region and HUD pane.
@@ -209,9 +211,10 @@ function startMatch(config, avatarAsset = null) {
   game.series = null;
   game.world = new World(game.maze ? game.maze.layout : config.map);
   group.add(game.world.group);
-  scene.background.set(0x9fc3ca);
-  scene.fog.near = game.maze ? 12 : 45;
-  scene.fog.far = game.maze ? 40 : 110;
+  scene.background.set(game.maze ? MAZE_ATMOSPHERE.color : 0x9fc3ca);
+  scene.fog.color.set(game.maze ? MAZE_ATMOSPHERE.color : 0x9fc3ca);
+  scene.fog.near = game.maze ? MAZE_ATMOSPHERE.near : 45;
+  scene.fog.far = game.maze ? MAZE_ATMOSPHERE.far : 110;
   game.entities = [];
   game.particles = [];
 
@@ -297,11 +300,14 @@ function startMatch(config, avatarAsset = null) {
 
   if (mode === 'tag' || mode === 'outbreak') game.series = createSeries(mode, game.entities);
   if (game.maze) {
-    const marker = new THREE.Mesh(new THREE.CylinderGeometry(0.65, 0.65, 3.5, 16), new THREE.MeshBasicMaterial({ color: 0x64e5ff, transparent: true, opacity: 0.8 }));
-    marker.position.set(game.maze.exit.x, 1.75, game.maze.exit.z);
+    const marker = createExitMarker(game.maze.exit);
     group.add(marker);
     game.maze.marker = marker;
     game.maze.monster = new MazeMonster(game.maze.start);
+    game.maze.monster.onEvent = (kind, at) => {
+      sfx.monster(kind, at);
+      if (kind === 'rumble') toast('The ground is rumbling… something is coming!', 2600);
+    };
     group.add(game.maze.monster.group);
     game.elapsed = 0;
   }
@@ -317,7 +323,7 @@ function startMatch(config, avatarAsset = null) {
   $('paused').hidden = true;
   document.body.classList.add('in-game');
   $('role-label').textContent = humanSeeker ? 'SEEKER' : 'RUNNER';
-  $('objective').textContent = mode === 'maze' ? 'Find the exit! The slow monster starts following after 12 seconds.'
+  $('objective').textContent = mode === 'maze' ? 'Find the exit! A fast monster with a short reach starts hunting after 12 seconds — dodge past it.'
     : mode === 'tag' ? 'Pass IT on contact. Lowest total IT time wins after 5 rounds.'
     : mode === 'outbreak' ? 'Survive the infection. Highest survival score wins after 3 rounds.'
     : humanSeeker ? 'Freeze every runner before time runs out.' : 'Stay unfrozen until the timer ends.';
@@ -660,10 +666,12 @@ function drawMinimap(p) {
     }
   }
   if (game.maze) {
-    mctx.fillStyle = '#36524f';
+    mctx.fillStyle = '#2f4f49';
     for (let z = 0; z < 64; z++) for (let x = 0; x < 64; x++) {
       if (p.explored[z * 64 + x]) mctx.fillRect(x * k, z * k, k + 0.5, k + 0.5);
     }
+    const o = (game.maze.layout.maze.origin + HALF) * k, side = game.maze.layout.maze.size * game.maze.layout.maze.cellSize * k;
+    mctx.strokeStyle = 'rgba(160,200,150,.35)'; mctx.lineWidth = 1; mctx.strokeRect(o - 1, o - 1, side + 2, side + 2);
   }
   const zoneColors = { mud: '#8a5a32', puddle: '#5fb0e8', sand: '#e3cf94', leaves: '#d98a3a' };
   for (const z of world.zones) {
@@ -671,7 +679,22 @@ function drawMinimap(p) {
     mctx.fillRect((z.minX + HALF) * k, (z.minZ + HALF) * k, z.w * k, z.d * k);
   }
   for (const w of world.obstacles) {
-    if (game.maze && !p.explored[Math.max(0, Math.min(63, Math.floor(w.z + HALF))) * 64 + Math.max(0, Math.min(63, Math.floor(w.x + HALF)))]) continue;
+    if (game.maze) {
+      const long = Math.max(w.w, w.d) / 2 - 1, ax = w.w > w.d;
+      const at = (x, z) => p.explored[Math.max(0, Math.min(63, Math.floor(z + HALF))) * 64 + Math.max(0, Math.min(63, Math.floor(x + HALF)))];
+      // Walls count as explored when a floor cell beside them was seen.
+      const seen = [-long, 0, long].some((o) => [-1, 1].some((side) => ax ? at(w.x + o, w.z + side) : at(w.x + side, w.z + o)));
+      if (!seen) continue;
+    }
+    if (game.maze && w.kind === 'wall') {
+      // Hedge walls as thin rounded strokes.
+      const horizontal = w.w > w.d, cx = (w.x + HALF) * k, cz = (w.z + HALF) * k, half = (horizontal ? w.w : w.d) * k / 2;
+      mctx.strokeStyle = '#a9d68f'; mctx.lineWidth = Math.max(2, k * 0.8); mctx.lineCap = 'round';
+      mctx.beginPath();
+      if (horizontal) { mctx.moveTo(cx - half + 1, cz); mctx.lineTo(cx + half - 1, cz); } else { mctx.moveTo(cx, cz - half + 1); mctx.lineTo(cx, cz + half - 1); }
+      mctx.stroke();
+      continue;
+    }
     mctx.fillStyle = w.soft ? '#6fae7a' : '#9aa7b4';
     mctx.globalAlpha = w.soft ? 0.4 : w.cls === 'low' ? 0.45 : w.cls === 'mid' ? 0.75 : 1;
     mctx.fillRect((w.minX + HALF) * k, (w.minZ + HALF) * k, w.w * k, w.d * k);
@@ -679,9 +702,29 @@ function drawMinimap(p) {
   mctx.globalAlpha = 1;
   if (game.maze) {
     const exit = game.maze.exit;
+    const beat = 0.5 + 0.5 * Math.sin(performance.now() / 260);
     if (p.explored[Math.floor(exit.z + HALF) * 64 + Math.floor(exit.x + HALF)]) {
+      const ex = (exit.x + HALF) * k, ez = (exit.z + HALF) * k, r = 5 + beat * 2;
+      mctx.fillStyle = `rgba(100,229,255,${0.15 + beat * 0.2})`;
+      mctx.beginPath(); mctx.arc(ex, ez, r + 4, 0, 6.283); mctx.fill();
       mctx.fillStyle = '#64e5ff';
-      mctx.fillRect((exit.x + HALF) * k - 3, (exit.z + HALF) * k - 3, 6, 6);
+      mctx.beginPath();
+      for (let i = 0; i < 10; i++) {
+        const a = -Math.PI / 2 + i * Math.PI / 5, q = i % 2 ? r * 0.45 : r;
+        mctx[i ? 'lineTo' : 'moveTo'](ex + Math.cos(a) * q, ez + Math.sin(a) * q);
+      }
+      mctx.closePath(); mctx.fill();
+    }
+    const start = game.maze.start;
+    mctx.strokeStyle = '#ffd36b'; mctx.lineWidth = 1.5;
+    mctx.beginPath(); mctx.arc((start.x + HALF) * k, (start.z + HALF) * k, 4, 0, 6.283); mctx.stroke();
+    const monster = game.maze.monster?.pos;
+    if (monster && (world.sees(player.pos, monster) || Math.hypot(monster.x - player.pos.x, monster.z - player.pos.z) < 7)) {
+      const mx = (monster.x + HALF) * k, mz = (monster.z + HALF) * k;
+      mctx.fillStyle = `rgba(255,70,90,${0.2 + beat * 0.25})`;
+      mctx.beginPath(); mctx.arc(mx, mz, 8, 0, 6.283); mctx.fill();
+      mctx.fillStyle = '#ff3b52';
+      mctx.beginPath(); mctx.arc(mx, mz, 4.2, 0, 6.283); mctx.fill();
     }
   }
   for (const e of entities) {
@@ -756,6 +799,7 @@ function render(dt, cam) {
     e.blink = e.grace > 0 ? Math.floor(performance.now() / 90) % 2 === 0 : true;
   }
   updateParticles(dt);
+  game.maze?.marker.userData.update?.(dt);
   if (cam) for (const p of players) if (p.ent) p.rig.update(dt, p.ent.pos, p.ent.vel, p.ent.char.yaw, world);
   drawViews();
 }
@@ -1123,7 +1167,7 @@ function updateModeOptions() {
   $('rescue-option').hidden = mode !== 'freeze';
   $('mode-help').textContent = mode === 'tag' ? 'Five 40-second rounds. The first player choosing Seeker starts as IT; otherwise a CPU starts. Lowest total IT time wins.'
     : mode === 'outbreak' ? 'Three 120-second rounds. Rescue frozen runners before infection spreads; most survival time wins.'
-    : mode === 'maze' ? 'Find the glowing exit before the slow monster catches you. It starts following after 12 seconds. Each player finishes separately.'
+    : mode === 'maze' ? 'Find the glowing exit before the monster catches you. It starts hunting after 12 seconds: it is fast but has a short reach, so sidestep past it when it lunges. Sprinting outruns it. Each player finishes separately.'
     : 'Tag by touching. Walls block sight. Rescue frozen teammates by staying nearby.';
 }
 $('opt-mode').addEventListener('change', updateModeOptions);

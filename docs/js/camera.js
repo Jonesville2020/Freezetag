@@ -80,11 +80,17 @@ export class ChaseCamera {
     if (this.maze) {
       const start = { x: target.x, z: target.z };
       const end = { x: target.x + Math.sin(this.yaw) * 3.5, z: target.z + Math.cos(this.yaw) * 3.5 };
-      const fraction = mazeCameraFraction(start, end, world.wallRects ?? world.rects);
+      const wanted = mazeCameraFraction(start, end, world.wallRects ?? world.rects);
+      // Pull in at once so the lens never clips a wall, but ease back out so it doesn't pop when a corner is cleared.
+      this.mazeFraction = this.snap || this.mazeFraction === undefined || wanted < this.mazeFraction
+        ? wanted : damp(this.mazeFraction, wanted, 7, dt);
+      this.snap = false;
+      const fraction = this.mazeFraction;
       this.camera.position.set(start.x + (end.x - start.x) * fraction, 1.65, start.z + (end.z - start.z) * fraction);
       this.focus.set(target.x, 1.25, target.z);
       this.camera.lookAt(this.focus);
-      this.camera.near = 0.05;
+      this.camera.near = 0.12;
+      this.camera.far = 90;
       this.camera.fov = 65;
       this.camera.updateProjectionMatrix();
       this.fade.clear();
@@ -92,7 +98,9 @@ export class ChaseCamera {
       return;
     }
 
-    this.camera.near = 0.1;
+    // A farther near plane keeps depth precision high, which stops thin floor decals from shimmering.
+    this.camera.near = 0.3;
+    this.camera.far = 150;
     const la = Math.min(1.6, speed * 0.25);
     const lx = speed > 0.1 ? (vel.x / speed) * la : 0, lz = speed > 0.1 ? (vel.z / speed) * la : 0;
     this.lookAhead.x = damp(this.lookAhead.x, lx, 3, dt);

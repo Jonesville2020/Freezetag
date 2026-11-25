@@ -252,6 +252,27 @@ export class Sfx {
       this.#note(v.out, v.t, 'bell', 95, 0.5, 0.1);
     }
   }
+  // Maze monster: 'rumble' (warning), 'spawn', 'windup' (growl), 'lunge' (whoosh).
+  monster(kind, at) {
+    const v = this.#voice(`monster-${kind}`, { gap: 0.3, at, dur: kind === 'rumble' ? 3 : 0.8, vol: 1.1 });
+    if (!v) return;
+    const { out, t } = v;
+    if (kind === 'rumble') {
+      this.#noise(out, t, { dur: 2.8, type: 'lowpass', f: 90, to: 220, vol: 0.16, attack: 1.2 });
+      this.#tone(out, t, { f: 48, to: 62, dur: 2.8, type: 'triangle', vol: 0.16, attack: 1.4 });
+    } else if (kind === 'spawn') {
+      this.#tone(out, t, { f: 120, to: 40, dur: 0.4, vol: 0.28 });
+      this.#noise(out, t, { dur: 0.5, type: 'lowpass', f: 1200, to: 200, vol: 0.14 });
+      this.#tone(out, t, { f: 180, to: 90, dur: 0.5, type: 'sawtooth', vol: 0.08, delay: 0.15, lp: 700 });
+    } else if (kind === 'windup') {
+      this.#tone(out, t, { f: 95, to: 60, dur: 0.6, type: 'sawtooth', vol: 0.12, attack: 0.15, lp: 600 });
+      this.#tone(out, t, { f: 101, to: 64, dur: 0.6, type: 'sawtooth', vol: 0.09, attack: 0.15, lp: 500 });
+      this.#noise(out, t, { dur: 0.55, type: 'bandpass', f: 300, to: 700, q: 2, vol: 0.06, attack: 0.2 });
+    } else if (kind === 'lunge') {
+      this.#noise(out, t, { dur: 0.3, type: 'bandpass', f: 500, to: 2600, q: 1.2, vol: 0.14 });
+      this.#tone(out, t, { f: 220, to: 120, dur: 0.25, type: 'sawtooth', vol: 0.1, lp: 900 });
+    }
+  }
   // n = 3, 2, 1 rising beeps; 0 = GO.
   countdown(n) {
     const v = this.#voice('countdown', { gap: 0, dur: 1 });
