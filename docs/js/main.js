@@ -256,6 +256,10 @@ function startMatch(config, avatarAsset = null) {
       new THREE.MeshBasicMaterial({ color: 0x8ff3ff, transparent: true, opacity: 0.45, depthWrite: false }));
     thawDisc.rotation.x = -Math.PI / 2; thawDisc.position.y = 0.04; thawDisc.visible = false;
     group.add(thawDisc); e.thawDisc = thawDisc;
+    const ice = new THREE.Mesh(new THREE.BoxGeometry(1.3, 2.0, 1.3),
+      new THREE.MeshStandardMaterial({ color: 0xa6ecff, emissive: 0x2a8fb0, emissiveIntensity: 0.5, transparent: true, opacity: 0.4, roughness: 0.1, depthWrite: false }));
+    ice.visible = false; ice.userData.iceBlock = true;
+    group.add(ice); e.ice = ice;
     if (human) {
       const arrow = new THREE.Mesh(new THREE.ConeGeometry(0.22, 0.45, 4),
         new THREE.MeshBasicMaterial({ color: seeker ? 0xff3b52 : 0xffffff }));
@@ -533,7 +537,7 @@ function updateThaw(dt) {
     if (f.thaw >= 1 || f.campTime >= 3) {
       f.frozen = false; f.thaw = 0; f.infection = 0; f.grace = f.campTime >= 3 ? 5 : GRACE; f.campTime = 0;
       const seen = seenByAll(f);
-      if (seen.some(Boolean)) { burst(f.pos.x, f.pos.z, 0xffffff, seen); sfx.thaw(f.pos); sfx.reaction('thaw', f.pos); }
+      if (seen.some(Boolean)) { burst(f.pos.x, f.pos.z, 0xbdf3ff, seen, 40); sfx.thaw(f.pos); sfx.reaction('thaw', f.pos); }
       if (f.human) toast('Thawed! Run!', 1500, f);
     }
   }
@@ -741,6 +745,12 @@ function render(dt, cam) {
     e.mark.position.set(e.pos.x, 0.03, e.pos.z);
     e.mark.material.opacity = (e.human ? 0.45 + Math.sin(performance.now() / 250) * 0.12 : e.grace > 0 ? 0.6 : 0.22);
     e.thawOn = e.frozen && e.thaw > 0.02;
+    e.iceOn = e.frozen && !e.seeker && game.state !== 'ended';
+    if (e.iceOn) {
+      const crack = e.thaw, shake = crack * 0.03;
+      e.ice.position.set(e.pos.x + (Math.random() - 0.5) * shake, 1.0, e.pos.z + (Math.random() - 0.5) * shake);
+      e.ice.material.opacity = 0.42 - crack * 0.2;
+    }
     if (e.thawOn) { e.thawDisc.position.set(e.pos.x, 0.04, e.pos.z); e.thawDisc.scale.setScalar(Math.max(0.05, e.thaw)); }
     if (e.arrow) e.arrow.position.set(e.pos.x, 2.5 + Math.sin(performance.now() / 280) * 0.12, e.pos.z);
     e.blink = e.grace > 0 ? Math.floor(performance.now() / 90) % 2 === 0 : true;
@@ -763,6 +773,7 @@ function drawViews() {
       e.tag.sprite.visible = e !== p.ent && Math.hypot(e.pos.x - p.ent.pos.x, e.pos.z - p.ent.pos.z) < 32;
       e.mark.visible = vis;
       e.thawDisc.visible = vis && e.thawOn;
+      e.ice.visible = vis && !!e.iceOn;
       if (e.arrow) e.arrow.visible = vis;
     }
     for (const pr of game.particles) pr.m.visible = !!pr.seenBy[idx];

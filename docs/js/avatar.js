@@ -125,7 +125,6 @@ export class Avatar extends Character {
 
   update(dt, velocity, state = {}) {
     super.update(dt, velocity, state);
-    if (this.wasFrozen && !state.frozen) this.recovering = true;
     this.wasFrozen = Boolean(state.frozen);
     this.moveSpeed = Math.hypot(velocity.x, velocity.z);
     let shot = null;

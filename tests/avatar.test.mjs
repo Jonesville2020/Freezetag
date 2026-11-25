@@ -24,10 +24,9 @@ test('supplied character uses movement and reaction animations without losing ol
   character.update(0.1, { x: 0, z: 0 }, { frozen: true });
   assert.equal(character.current, 'Alert');
   character.update(0.1, { x: 0, z: 0 });
-  assert.equal(character.current, 'Stand_Up2');
-  character.update(0.6, { x: 0, z: 0 });
-  character.update(0.1, { x: 0, z: 0 });
   assert.equal(character.current, 'Idle_9');
+  character.update(0.1, { x: 5, z: 0 });
+  assert.equal(character.current, 'Running');
   character.update(0.1, { x: 0, z: 0 }, { joy: true });
   assert.equal(character.current, 'Victory_Cheer');
 });
