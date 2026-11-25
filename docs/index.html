@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#0b1320">
 <title>Freeze Tag 3D</title>
-<link rel="stylesheet" href="style.css?v=avatar5">
+<link rel="stylesheet" href="style.css?v=title1">
 <script type="importmap">{"imports":{"three":"./vendor/three.module.min.js"}}</script>
 </head>
 <body>
@@ -29,19 +29,38 @@
 
 <div id="stick" class="stick"><div id="stick-knob"></div></div>
 
-<section id="home" class="card-wrap">
-  <div class="card home-card">
-    <span class="eyebrow">FREEZE TAG / 3D</span>
-    <h1>Ready, set,<br><em>play!</em></h1>
-    <p>Chase your friends, escape the maze, and make your own runner.</p>
-    <div class="home-actions">
-      <button id="quick-play" class="primary">Quick play · random game</button>
-      <button id="custom-play" class="secondary">Choose game &amp; players</button>
-      <button id="home-settings" class="secondary">Settings</button>
-    </div>
-    <p class="small">Controller: left stick / D-pad to move through options, A to select, B to go back. Left / right changes a setting.</p>
+<section id="home" class="card-wrap title-screen" aria-label="Freeze Tag 3D title screen">
+  <div class="title-band-edge" aria-hidden="true"></div>
+  <div class="title-band" aria-hidden="true"><div id="title-stage" class="title-stage"></div></div>
+  <header class="title-logo">
+    <h1 aria-label="Freeze Tag 3D">
+      <span class="logo-word logo-freeze" data-text="FREEZE" aria-hidden="true">FREEZE<i class="icicles"></i></span>
+      <span class="logo-word logo-tag" data-text="TAG" aria-hidden="true">TAG</span>
+    </h1>
+    <span class="logo-badge" aria-hidden="true"><b>3D</b></span>
+    <p class="logo-tagline">Chase. Dodge. Freeze everyone!</p>
+  </header>
+  <nav class="title-menu" id="title-menu" aria-label="Main menu">
+    <button id="quick-play" class="title-btn">Quick play</button>
+    <button id="custom-play" class="title-btn">Start</button>
+    <button id="title-studio" class="title-btn">Characters</button>
+    <button id="home-settings" class="title-btn">Options</button>
+    <button id="title-credits" class="title-btn">Credits</button>
+  </nav>
+  <div class="title-status">
     <p class="small audio-status" role="status"></p>
     <p class="small avatar-status" role="status"></p>
+  </div>
+  <div class="title-version">Freeze Tag 3D · v1.0</div>
+  <div class="title-hint"><span>Stick / D-pad to move · B to go back</span> <b class="confirm-badge"><i>A</i> CONFIRM</b></div>
+  <div id="credits-panel" class="credits-panel" role="dialog" aria-label="Credits" hidden>
+    <div class="credits-card">
+      <h2>Credits</h2>
+      <p><b>Freeze Tag 3D</b><br>Game design and code by Jonesville2020 and friends.</p>
+      <p><b>Characters</b><br>Animated character model supplied for this game; outfits, hair and colours are built in code.</p>
+      <p><b>Engine</b><br>Made with <a href="https://threejs.org" target="_blank" rel="noopener">Three.js</a> (MIT licence).</p>
+      <button id="credits-back" class="title-btn">Back</button>
+    </div>
   </div>
 </section>
 
@@ -140,6 +159,7 @@
     <div class="actions"><button id="result-menu" class="secondary">Home menu</button><button id="next-round" class="primary" hidden>Next round →</button><button id="replay" class="primary">Play again →</button></div>
   </div>
 </section>
-<script type="module" src="js/main.js?v=avatar5"></script>
+<script type="module" src="js/main.js?v=title1"></script>
+<script type="module" src="js/title-screen.js?v=title1"></script>
 </body>
 </html>

@@ -85,3 +85,83 @@ body.split .hint { display:none; }
 button:focus, select:focus, input:focus, summary:focus {
   outline:3px solid #64e5ff; outline-offset:3px;
 }
+
+/* ---------- Title screen & shared "paper" menu theme ---------- */
+:root { --cream:#fff4dc; --paper:#fffaf0; --ink-d:#3a1d12; --teal:#1ea6a4; --teal-d:#137a7c; --orange:#ff8a1f; --yellow:#ffd23f; --ice:#8fdcff; --display:'Baloo 2','Fredoka','Nunito','Arial Rounded MT Bold','Trebuchet MS',system-ui,sans-serif; }
+.title-screen { background:radial-gradient(circle at 50% 40%, #fffdf5 0, var(--cream) 60%, #f6dfae 100%); color:var(--ink-d); overflow:hidden; padding:0; font-family:var(--display); }
+.title-screen::before { content:""; position:absolute; inset:0; background:radial-gradient(#e9c98e44 1.5px, transparent 1.6px) 0 0/22px 22px; pointer-events:none; }
+.title-band-edge, .title-band { position:absolute; left:-8vw; width:116vw; top:25%; height:50%; transform:rotate(-4deg); }
+.title-band-edge { background:var(--ink-d); top:calc(25% - 1.4vh); height:calc(50% + 2.8vh); filter:drop-shadow(0 10px 0 #3a1d1233); }
+.title-band { background:linear-gradient(#8fd3f4,#e8f7ff 70%,#84d46a 70%); overflow:hidden; }
+.title-stage { position:absolute; inset:0; }
+.title-stage canvas, .title-canvas { position:absolute; inset:0; width:100%; height:100%; display:block; }
+.title-band::after { content:""; position:absolute; inset:0; pointer-events:none; box-shadow:inset 0 0 70px #fff8e0aa, inset 0 -40px 60px #3a1d1222; background:linear-gradient(100deg,#ffffff00 40%,#ffffff22 50%,#ffffff00 60%); }
+.title-stage.title-fallback, .title-fallback { background:linear-gradient(#5db6ee,#d8f1ff 55%,#7fd067 55%); }
+
+.title-logo { position:absolute; left:clamp(12px,5vw,90px); top:clamp(24px,6vh,70px); z-index:3; pointer-events:none; transform:rotate(-4deg); transform-origin:left top; }
+.title-logo h1 { margin:0; font-family:var(--display); font-weight:900; line-height:.82; isolation:isolate; font-size:clamp(46px,min(9vw,15vh),160px); letter-spacing:.01em; }
+.logo-word { position:relative; display:block; width:max-content; background:linear-gradient(#fff6a8 0%,var(--yellow) 30%,var(--orange) 80%,#e8590c 100%); -webkit-background-clip:text; background-clip:text; color:transparent; }
+.logo-word::before { content:attr(data-text); position:absolute; inset:0; z-index:-1; color:var(--ink-d); -webkit-text-stroke:.16em var(--ink-d); text-shadow:0 .08em 0 var(--ink-d),0 .14em .12em #0006; background:none; }
+.logo-word::after { content:attr(data-text); position:absolute; inset:0; z-index:-1; -webkit-text-stroke:.07em #fff4dc; color:transparent; }
+.logo-tag { margin-left:1.1em; margin-top:-.04em; font-size:1.05em; }
+.icicles { position:absolute; left:.02em; right:.02em; bottom:-.2em; height:.26em; background:linear-gradient(#e9fbff,var(--ice) 70%,#4cb8e8); clip-path:polygon(0 0,100% 0,100% 18%,96% 70%,92% 18%,86% 100%,80% 22%,74% 60%,68% 20%,61% 85%,55% 20%,49% 64%,43% 18%,36% 100%,30% 22%,24% 70%,17% 20%,11% 82%,6% 24%,0 20%); filter:drop-shadow(0 .02em 0 var(--ink-d)); z-index:2; pointer-events:none; }
+.logo-freeze { text-shadow:none; }
+.logo-badge { position:absolute; right:-.4em; top:-.2em; width:.46em; height:.46em; margin:0; display:grid; place-items:center; border-radius:50%; font-size:clamp(46px,min(9vw,15vh),160px); background:radial-gradient(circle at 35% 30%,#fff,var(--ice) 35%,var(--teal) 100%); border:.02em solid var(--ink-d); box-shadow:.02em .04em 0 var(--ink-d),inset 0 -.03em .04em #0a5a6b88; transform:rotate(10deg); }
+.logo-badge b { font-size:.2em; font-weight:900; color:var(--ink-d); letter-spacing:.02em; text-shadow:0 .02em 0 #fff; }
+.logo-tagline { margin:.5em 0 0 .6em; font-size:clamp(13px,2.1vh,22px); font-weight:800; color:var(--ink-d); background:var(--paper); display:inline-block; padding:.15em .8em; border-radius:999px; border:2px solid var(--ink-d); box-shadow:0 3px 0 var(--ink-d); }
+
+.title-menu { position:absolute; z-index:4; right:clamp(14px,6vw,110px); bottom:clamp(40px,17vh,170px); width:min(290px,42vw); display:grid; gap:clamp(5px,1.1vh,10px); transform:rotate(-4deg); }
+.title-btn { font-family:var(--display); font-weight:900; font-size:clamp(17px,3vh,28px); letter-spacing:.12em; text-transform:uppercase; padding:.32em 1em; text-align:left; border-radius:10px; color:#fff; background:linear-gradient(#26b9b6,var(--teal-d)); border:3px solid var(--ink-d); box-shadow:0 5px 0 var(--ink-d),0 10px 14px #0003; text-shadow:0 2px 0 #0a4a4c; cursor:pointer; transition:transform .08s, background .08s; position:relative; }
+.title-btn:hover, .title-btn:focus-visible, .title-btn:focus, .title-menu:not(:focus-within) .title-btn:first-child { background:#fff; color:var(--ink-d); text-shadow:none; transform:translateX(-10px); outline:none; }
+.title-btn:hover::before, .title-btn:focus::before, .title-menu:not(:focus-within) .title-btn:first-child::before { content:"▶"; position:absolute; left:-1.1em; top:50%; transform:translateY(-50%); color:var(--orange); text-shadow:0 2px 0 var(--ink-d),1px 0 0 var(--ink-d),-1px 0 0 var(--ink-d); font-size:.8em; }
+.title-btn:active { transform:translate(-10px,3px); box-shadow:0 2px 0 var(--ink-d); }
+.title-btn:focus-visible { box-shadow:0 5px 0 var(--ink-d),0 0 0 4px var(--orange); }
+
+.title-status { position:absolute; left:0; right:0; bottom:calc(8px + env(safe-area-inset-bottom)); text-align:center; z-index:5; pointer-events:none; }
+.title-status .small { margin:0; color:var(--ink-d); font-size:12px; }
+.title-version { position:absolute; left:clamp(12px,3vw,40px); bottom:calc(14px + env(safe-area-inset-bottom)); font-size:13px; font-weight:800; letter-spacing:.1em; color:var(--ink-d); opacity:.75; z-index:5; }
+.title-hint { position:absolute; right:clamp(12px,3vw,40px); bottom:calc(12px + env(safe-area-inset-bottom)); display:flex; gap:12px; align-items:center; z-index:5; font-size:12px; font-weight:700; color:var(--ink-d); }
+.title-hint span { opacity:.65; }
+.confirm-badge { display:inline-flex; gap:7px; align-items:center; font-weight:900; letter-spacing:.1em; font-size:14px; background:var(--ink-d); color:#fff; padding:4px 12px 4px 5px; border-radius:999px; }
+.confirm-badge i { font-style:normal; display:grid; place-items:center; width:22px; height:22px; border-radius:50%; background:#3fbf6a; color:#fff; font-size:13px; box-shadow:inset 0 -2px 0 #1d7a3e; }
+
+.credits-panel { position:absolute; inset:0; z-index:8; display:grid; place-items:center; background:#3a1d1266; padding:16px; }
+.credits-card { background:var(--paper); border:4px solid var(--ink-d); border-radius:18px; padding:20px 24px; width:min(440px,100%); box-shadow:0 8px 0 var(--ink-d); transform:rotate(-1deg); }
+.credits-card h2 { margin:0 0 8px; font-size:34px; font-weight:900; color:var(--orange); -webkit-text-stroke:1px var(--ink-d); text-shadow:0 3px 0 var(--ink-d); }
+.credits-card p { margin:.6em 0; font-size:15px; line-height:1.35; color:var(--ink-d); font-weight:700; }
+.credits-card a { color:var(--teal-d); }
+.credits-card .title-btn { width:100%; margin-top:10px; text-align:center; }
+
+@media (max-width:700px), (max-aspect-ratio:1/1) {
+  .title-band-edge, .title-band { top:28%; height:38%; }
+  .title-band-edge { top:calc(28% - 1vh); height:calc(38% + 2vh); }
+  .title-logo { top:2.5vh; left:5vw; }
+  .title-logo h1 { font-size:min(22vw,13vh); }
+  .title-menu { left:50%; right:auto; bottom:7vh; width:min(76vw,320px); transform:translateX(-50%); gap:6px; }
+  .title-btn { font-size:min(5.2vw,3.1vh); padding:.3em .9em; }
+  .title-btn:hover, .title-btn:focus, .title-menu:not(:focus-within) .title-btn:first-child { transform:none; }
+  .title-btn:hover::before, .title-btn:focus::before, .title-menu:not(:focus-within) .title-btn:first-child::before { left:.3em; }
+  .title-btn:hover, .title-btn:focus, .title-menu:not(:focus-within) .title-btn:first-child { padding-left:1.6em; }
+  .title-hint span { display:none; }
+}
+
+/* Other menu screens: same paper look */
+#menu.card-wrap { background:radial-gradient(circle at 50% 20%, #fffdf5, var(--cream) 70%, #f6dfae); color:var(--ink-d); font-family:var(--display); }
+#paused.card-dialog, #audio-settings.card-dialog, #result.card-dialog { background:#3a1d1288; font-family:var(--display); color:var(--ink-d); }
+#menu .card, #paused .card, #audio-settings .card, #result .card { background:var(--paper); color:var(--ink-d); border:4px solid var(--ink-d); border-radius:20px; box-shadow:0 8px 0 var(--ink-d),0 18px 30px #0003; }
+#menu h1, #paused h1, #audio-settings h1, #result h1 { font-family:var(--display); font-weight:900; color:var(--ink-d); }
+#menu h1 em, #paused h1 em, #audio-settings h1 em, #result h1 em { color:var(--orange); }
+#menu .eyebrow, #paused .eyebrow, #audio-settings .eyebrow, #result .eyebrow { color:var(--teal-d); font-weight:900; }
+#menu label, #paused label, #audio-settings label, #result label { color:#6b4a3a; font-weight:800; }
+#menu select, #paused select { background:#fff; color:var(--ink-d); border:2px solid var(--ink-d); border-radius:10px; font-weight:700; }
+#menu .small, #paused .small, #audio-settings .small, #result .small { color:#7a5a4a; }
+#menu button, #paused button, #audio-settings button, #result button { font-family:var(--display); font-weight:800; color:var(--ink-d); background:#fff; border:3px solid var(--ink-d); box-shadow:0 4px 0 var(--ink-d); }
+#menu button:active, #paused button:active, #audio-settings button:active, #result button:active { transform:translateY(3px); box-shadow:0 1px 0 var(--ink-d); }
+#menu button.primary, #paused button.primary, #audio-settings button.primary, #result button.primary { background:linear-gradient(var(--yellow),var(--orange)); color:var(--ink-d); }
+#menu .studio { background:#fff3d6; border:3px solid var(--ink-d); }
+#menu .studio summary { color:var(--teal-d); font-weight:900; }
+#menu .studio summary span { color:#6b4a3a; }
+#menu .volume input, #audio-settings .volume input { accent-color:var(--orange); }
+#menu .color-grid input { background:#fff; border-color:var(--ink-d); }
+#menu button:focus, #menu select:focus, #menu input:focus, #menu summary:focus, #paused button:focus, #paused select:focus, #audio-settings button:focus, #audio-settings input:focus, #result button:focus { outline:3px solid var(--orange); outline-offset:3px; }
+.title-screen button:focus { outline:none; }

@@ -8,7 +8,9 @@ import { NameTag } from './nametag.js?v=avatar5';
 import { ChaseCamera } from './camera.js?v=world-refresh';
 import { Input } from './input.js?v=controller-menu';
 import { Brain, LEVELS } from './ai.js';
-import { Sfx } from './sfx.js?v=controller-menu';
+import { Sfx } from './sfx.js?v=audio1';
+import { attachUiSounds } from './ui-sounds.js?v=audio1';
+import { matchIntensity } from './music.js?v=audio1';
 import { MenuController } from './menu-controller.js';
 import { Navigator } from './nav.js';
 import { MAX_PLAYERS, keymapFor, playerRects, slotLabels, assignSlot, normalizeSlots } from './splitscreen.js';
@@ -37,7 +39,7 @@ const settings = {
   appearances: Array.from({ length: MAX_PLAYERS }, (_, i) => loadAppearance(stored.appearances?.[i], i)),
   slots: normalizeSlots(stored.slots, MAX_PLAYERS),
   audio: {
-    music: Number.isFinite(stored.audio?.music) ? Math.max(0, Math.min(1, stored.audio.music)) : 0.2,
+    music: Number.isFinite(stored.audio?.music) ? Math.max(0, Math.min(1, stored.audio.music)) : 0.35,
     effects: Number.isFinite(stored.audio?.effects) ? Math.max(0, Math.min(1, stored.audio.effects)) : 0.7,
   },
 };
@@ -377,8 +379,8 @@ function step(dt) {
   if (game.countdown > 0) {
     const prev = Math.ceil(game.countdown);
     game.countdown -= dt;
-    if (Math.ceil(game.countdown) !== prev && game.countdown > 0) sfx.beep(520, 0.08);
-    if (game.countdown <= 0) { toast('GO!', 900); sfx.beep(880, 0.18); }
+    if (Math.ceil(game.countdown) !== prev && game.countdown > 0) sfx.countdown(Math.ceil(game.countdown));
+    if (game.countdown <= 0) { toast('GO!', 900); sfx.countdown(0); }
   } else if (game.maze) {
     game.elapsed += dt;
   } else {
@@ -389,7 +391,7 @@ function step(dt) {
     for (const event of updateSeries(game.series, entities, dt)) {
       if (event.type === 'infected') {
         updateRoleAppearance(event.player);
-        if (seenByAll(event.player).some(Boolean)) sfx.reaction('infected');
+        if (seenByAll(event.player).some(Boolean)) { sfx.tag(event.player.pos); sfx.reaction('infected', event.player.pos); }
         if (event.player.human) toast('Infected! You are now a seeker.', 2000, event.player);
       }
     }
@@ -424,6 +426,9 @@ function step(dt) {
     const dx = tvx - e.vel.x, dz = tvz - e.vel.z, dl = Math.hypot(dx, dz);
     if (dl > rate) { e.vel.x += (dx / dl) * rate; e.vel.z += (dz / dl) * rate; } else { e.vel.x = tvx; e.vel.z = tvz; }
     e.pos.x += e.vel.x * dt; e.pos.z += e.vel.z * dt;
+    if (zoneTarget < 0.95 && !e.inZone) sfx.splash(e.pos);
+    e.inZone = zoneTarget < 0.95;
+    if (e.human && e === players[0].ent && players.length === 1 && !e.frozen) sfx.footstep(Math.hypot(e.vel.x, e.vel.z), dt);
   }
 
   // Soft separation so characters do not stack.
@@ -448,7 +453,7 @@ function step(dt) {
       e.stumble = STUMBLE_TIME;
       e.stumbleCool = STUMBLE_TIME + 0.5;
       const seen = seenByAll(e);
-      if (seen.some(Boolean)) { burst(e.pos.x - contact.nx * RADIUS, e.pos.z - contact.nz * RADIUS, 0xd9c7a6, seen, 4); if (e.human) sfx.beep(140, 0.06); }
+      if (seen.some(Boolean)) { burst(e.pos.x - contact.nx * RADIUS, e.pos.z - contact.nz * RADIUS, 0xd9c7a6, seen, 4); sfx.stumble(e.pos); }
     }
     e.vel.x += contact.nx * into; e.vel.z += contact.nz * into;
   }
@@ -459,7 +464,7 @@ function step(dt) {
         e.escaped = true;
         e.finishTime = game.elapsed;
         e.vel.x = e.vel.z = 0;
-        if (seenByAll(e).some(Boolean)) sfx.reaction('escape');
+        if (seenByAll(e).some(Boolean)) sfx.reaction('escape', e.pos);
         toast(`Escaped in ${e.finishTime.toFixed(1)}s!`, 2500, e);
       }
     }
@@ -487,7 +492,7 @@ function step(dt) {
             updateRoleAppearance(s);
             updateRoleAppearance(r);
             const seen = seenByAll(r);
-            if (seen.some(Boolean)) { burst(r.pos.x, r.pos.z, 0x9eefff, seen); sfx.freeze(); sfx.reaction('frozen'); }
+            if (seen.some(Boolean)) { burst(r.pos.x, r.pos.z, 0x9eefff, seen); sfx.tag(r.pos); sfx.freeze(r.pos); sfx.reaction('frozen', r.pos); }
             if (r.human) toast(config.mode === 'tag' ? `${s.name} tagged you. You are IT!` : `${s.name} froze you! Rescue before infection.`, 2000, r);
           } else if (!game.series) freeze(r, s);
         }
@@ -513,7 +518,7 @@ function step(dt) {
 function freeze(r, by) {
   r.frozen = true; r.thaw = 0; r.vel.x = r.vel.z = 0;
   const seen = seenByAll(r);
-  if (seen.some(Boolean)) { burst(r.pos.x, r.pos.z, 0x9eefff, seen); sfx.freeze(); sfx.reaction('frozen'); }
+  if (seen.some(Boolean)) { burst(r.pos.x, r.pos.z, 0x9eefff, seen); sfx.tag(r.pos); sfx.freeze(r.pos); sfx.reaction('frozen', r.pos); }
   if (r.human) toast(`${by.name} froze you! Wait for a rescue.`, 2200, r);
   else if (by.human) toast(`Froze ${r.name}! ${game.entities.filter((e) => !e.seeker && e.frozen).length}/${game.config.runners}`, 1000, by);
 }
@@ -528,7 +533,7 @@ function updateThaw(dt) {
     if (f.thaw >= 1 || f.campTime >= 3) {
       f.frozen = false; f.thaw = 0; f.infection = 0; f.grace = f.campTime >= 3 ? 5 : GRACE; f.campTime = 0;
       const seen = seenByAll(f);
-      if (seen.some(Boolean)) { burst(f.pos.x, f.pos.z, 0xffffff, seen); sfx.thaw(); sfx.reaction('thaw'); }
+      if (seen.some(Boolean)) { burst(f.pos.x, f.pos.z, 0xffffff, seen); sfx.thaw(f.pos); sfx.reaction('thaw', f.pos); }
       if (f.human) toast('Thawed! Run!', 1500, f);
     }
   }
@@ -563,7 +568,7 @@ function endSeriesRound() {
   $('next-round').hidden = final;
   $('replay').hidden = !final;
   $('result').hidden = false;
-  if (final) sfx.win();
+  if (final) sfx.win(); else sfx.results();
 }
 
 function nextSeriesRound() {
@@ -806,16 +811,37 @@ function tapControl(p, poll, dt) {
   return { x: dir.x, z: dir.z, mag: Math.max(0.4, Math.min(1, d / 1.2)) };
 }
 
+function syncAudio() {
+  const state = game.state;
+  sfx.setScene(state === 'menu' || !game.config ? 'menu' : state === 'ended' ? 'results' : 'match', { mode: game.config?.mode });
+  sfx.setPaused(state === 'paused');
+  if (state !== 'playing' || !game.entities.length) { sfx.setIntensity(0); return; }
+  const p = players[0].ent, free = (e) => !e.frozen && !e.escaped && !e.caught && !e.gaveUp;
+  const others = game.entities.filter((e) => e !== p && (p.seeker ? !e.seeker && free(e) : e.seeker && free(e)));
+  let nearest = Math.min(Infinity, ...others.map((e) => Math.hypot(e.pos.x - p.pos.x, e.pos.z - p.pos.z)));
+  if (game.maze?.monster) nearest = Math.min(nearest, Math.hypot(game.maze.monster.pos.x - p.pos.x, game.maze.monster.pos.z - p.pos.z));
+  const runners = game.entities.filter((e) => !e.seeker);
+  sfx.setIntensity(matchIntensity({
+    runner: !p.seeker, frozen: p.frozen, nearestThreat: nearest, timeLeft: game.maze ? Infinity : game.time,
+    frozenFraction: game.config.mode === 'maze' || !runners.length ? 0 : runners.filter((e) => e.frozen).length / runners.length,
+  }));
+  const rig = players[0].rig;
+  sfx.setListener(players.length === 1 ? { x: p.pos.x, z: p.pos.z, rx: rig.right.x, rz: rig.right.z } : null);
+}
+
 // ---- main loop -----------------------------------------------------------------
 let last = performance.now(), acc = 0;
 function frame(now) {
   requestAnimationFrame(frame);
   const dt = Math.min(0.05, (now - last) / 1000);
   last = now;
-  sfx.update(!document.hidden && game.state !== 'paused');
+  syncAudio();
+  sfx.update(!document.hidden);
   if (game.state !== 'playing') menuController.update(navigator.getGamepads?.(), now);
   else menuController.update(null, now);
   if (game.state === 'menu') {
+    // The opaque title/setup screens cover the canvas, so skip rendering the arena behind them.
+    if (!$('home').hidden || !$('menu').hidden) return;
     renderer.setScissorTest(false);
     renderer.setViewport(0, 0, innerWidth, innerHeight);
     renderer.render(scene, camera);
@@ -1097,6 +1123,7 @@ for (const [id, act] of [['cam-left', 'yawL'], ['cam-right', 'yawR']]) {
   b.addEventListener('pointerdown', (e) => { b.setPointerCapture(e.pointerId); input.hold(act, true); });
   for (const t of ['pointerup', 'pointercancel']) b.addEventListener(t, () => input.hold(act, false));
 }
+attachUiSounds(sfx);
 applySettings();
 updateModeOptions();
 updateAppearancePlayers();
