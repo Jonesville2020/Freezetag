@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { attachToBone } from './outfit.js?v=avatar3';
+import { attachToBone } from './outfit.js?v=avatar5';
 
 // Builds avatar.look.accessory, coloured by look.accent.
 // All geometry is authored in metres in the character frame (+Y up, +Z forward) at the

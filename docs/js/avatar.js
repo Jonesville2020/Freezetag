@@ -1,11 +1,12 @@
 import * as THREE from 'three';
 import { GLTFLoader } from '../vendor/addons/loaders/GLTFLoader.js';
 import { clone } from '../vendor/addons/utils/SkeletonUtils.js';
-import { Character, SEEKER_COLOR, normalizeAppearance } from './character.js?v=avatar3';
-import { applyColors } from './avatar-color.js?v=avatar3';
-import { buildHair } from './avatar-hair.js?v=avatar3';
-import { buildTop, buildBottom } from './avatar-clothes.js?v=avatar3';
-import { buildAccessory } from './avatar-accessories.js?v=avatar3';
+import { Character, normalizeAppearance } from './character.js?v=avatar5';
+import { setTints } from './outfit.js?v=avatar5';
+import { applyColors } from './avatar-color.js?v=avatar5';
+import { buildHair } from './avatar-hair.js?v=avatar5';
+import { buildTop, buildBottom } from './avatar-clothes.js?v=avatar5';
+import { buildAccessory } from './avatar-accessories.js?v=avatar5';
 
 const LOCOMOTION = ['Idle_9', 'Walking', 'Running'];
 const WALK_STRIDE = 1.45, RUN_STRIDE = 2.2, MAX_CADENCE = 1.9, FADE_RATE = 9;
@@ -49,14 +50,7 @@ export class Avatar extends Character {
     this.group.add(this.model);
     this.look = normalizeAppearance(options.appearance);
     for (const build of [applyColors, buildTop, buildBottom, buildHair, buildAccessory]) build(this);
-    if (options.seeker) {
-      // The baked model has no team colour, so mark the seeker with a red beacon.
-      this.beacon = new THREE.Mesh(new THREE.ConeGeometry(0.11, 0.22, 4),
-        new THREE.MeshBasicMaterial({ color: SEEKER_COLOR }));
-      this.beacon.rotation.x = Math.PI;
-      this.beacon.position.y = 2.15;
-      this.group.add(this.beacon);
-    }
+    this.setSeeker(Boolean(options.seeker));
     this.mixer = new THREE.AnimationMixer(this.model);
     this.actions = Object.fromEntries(asset.animations.map((clip) => [clip.name, this.mixer.clipAction(clip)]));
     this.current = null;
@@ -75,6 +69,14 @@ export class Avatar extends Character {
     this.update(0, { x: 0, z: 0 });
     for (const name of LOCOMOTION) this.weights[name] = name === 'Idle_9' ? 1 : 0;
     this.applyWeights(0);
+  }
+
+  // Seekers always wear red: swaps the registered shirt / trim colours in place.
+  setSeeker(on) {
+    on = Boolean(on);
+    if (this.seekerOn === on) return;
+    this.seekerOn = on;
+    setTints(this, on);
   }
 
   // Locomotion is blended by speed on a shared stride phase so feet stay in step
@@ -148,6 +150,5 @@ export class Avatar extends Character {
     idle.time = (idle.time + dt) % idle.getClip().duration;
     this.applyWeights(dt);
     this.mixer.update(dt);
-    if (this.beacon) this.beacon.position.y = 2.15 + Math.sin(performance.now() / 250) * 0.05;
   }
 }

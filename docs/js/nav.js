@@ -14,7 +14,7 @@ export class Navigator {
     if (d < 0.35) return { x: 0, z: 0 };
     let target = goal;
     if (d > 1.5 || world.blocked(pos.x, pos.z, goal.x, goal.z, 0.45)) {
-      const direct = d < 9 && !world.blocked(pos.x, pos.z, goal.x, goal.z, 0.5);
+      const direct = d < 9 && !world.blocked(pos.x, pos.z, goal.x, goal.z, 0.5) && !world.zoneOnSegment?.(pos.x, pos.z, goal.x, goal.z);
       if (!direct) {
         const moved = !this.goal || dist(this.goal, goal) > 2.5;
         if (moved || this.repath <= 0 || !this.path.length) {
@@ -26,7 +26,7 @@ export class Navigator {
         if (this.path.length) {
           target = this.path[0];
           for (let i = 1; i < Math.min(this.path.length, 6); i++) {
-            if (world.blocked(pos.x, pos.z, this.path[i].x, this.path[i].z, 0.45)) break;
+            if (world.blocked(pos.x, pos.z, this.path[i].x, this.path[i].z, 0.45) || world.zoneOnSegment?.(pos.x, pos.z, this.path[i].x, this.path[i].z)) break;
             target = this.path[i];
           }
         }

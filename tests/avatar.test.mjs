@@ -32,13 +32,16 @@ test('supplied character uses movement and reaction animations without losing ol
   assert.equal(character.current, 'Victory_Cheer');
 });
 
-test('seeker avatar gets a team marker', () => {
+test('avatar seeker flag toggles at runtime', () => {
   const scene = new THREE.Group();
   scene.add(new THREE.Mesh(new THREE.BoxGeometry(1, 2, 1), new THREE.MeshStandardMaterial()));
   const names = ['Idle_9', 'Walking', 'Running', 'Alert', 'Stand_Up2', 'Touch_and_Run', 'Victory_Cheer'];
   const asset = { scene, bounds: new THREE.Box3().setFromObject(scene), scale: 1, animations: names.map((n) => new THREE.AnimationClip(n, 0.5, [])) };
-  assert.ok(new Avatar({ seeker: true }, asset).beacon);
-  assert.equal(new Avatar({}, asset).beacon, undefined);
+  const seeker = new Avatar({ seeker: true }, asset);
+  assert.equal(seeker.seekerOn, true);
+  seeker.setSeeker(false);
+  assert.equal(seeker.seekerOn, false);
+  assert.equal(new Avatar({}, asset).seekerOn, false);
 });
 
 test('locomotion blends walk and run on a shared stride phase', () => {

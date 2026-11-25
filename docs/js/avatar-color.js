@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { findSkinnedMesh } from './outfit.js?v=avatar3';
+import { findSkinnedMesh, registerTint } from './outfit.js?v=avatar5';
 
 // Recolours the baked texture (skin, top, bottoms, shoes) per avatar from avatar.look.
 // A region mask (R skin, G shirt, B pants, A shoes) is built once per geometry from the
@@ -209,6 +209,8 @@ export function applyColors(avatar) {
     ftStyle: { value: style },
     ftShirtBox: { value: new THREE.Vector4(box.min.y, box.max.y, torso.max.x, box.max.x) },
   };
+  registerTint(avatar, 'shirt', uniforms.ftShirt.value);
+  registerTint(avatar, 'trim', uniforms.ftAccent.value);
   material.onBeforeCompile = (shader) => {
     Object.assign(shader.uniforms, uniforms);
     shader.vertexShader = shader.vertexShader

@@ -80,7 +80,7 @@ export class ChaseCamera {
     if (this.maze) {
       const start = { x: target.x, z: target.z };
       const end = { x: target.x + Math.sin(this.yaw) * 3.5, z: target.z + Math.cos(this.yaw) * 3.5 };
-      const fraction = mazeCameraFraction(start, end, world.rects);
+      const fraction = mazeCameraFraction(start, end, world.wallRects ?? world.rects);
       this.camera.position.set(start.x + (end.x - start.x) * fraction, 1.65, start.z + (end.z - start.z) * fraction);
       this.focus.set(target.x, 1.25, target.z);
       this.camera.lookAt(this.focus);
@@ -130,6 +130,8 @@ export class ChaseCamera {
   applyFade(world) {
     for (const m of world.wallMeshes) {
       const next = this.fade.get(m) ?? 1;
+      const mats = m.userData.fadeMats;
+      if (mats) { for (const q of mats) { q.opacity = next; q.depthWrite = next > 0.95; } continue; }
       m.material.opacity = next;
       for (const child of m.children) child.material.opacity = next;
       m.material.depthWrite = next > 0.95;
@@ -144,7 +146,12 @@ export class ChaseCamera {
     dir.normalize();
     this.ray.set(cam, dir);
     this.ray.far = len;
-    const hit = new Set(this.ray.intersectObjects(world.wallMeshes, false).map((h) => h.object));
+    const hit = new Set();
+    for (const h of this.ray.intersectObjects(world.wallMeshes, true)) {
+      let o = h.object;
+      while (o && !o.userData.bounds) o = o.parent;
+      if (o) hit.add(o);
+    }
     for (const m of world.wallMeshes) {
       const b = m.userData.bounds;
       const lensInside = cam.x > b.minX - 0.8 && cam.x < b.maxX + 0.8 && cam.z > b.minZ - 0.8 && cam.z < b.maxZ + 0.8 && cam.y < m.userData.h + 0.8;

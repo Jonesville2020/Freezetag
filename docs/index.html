@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#0b1320">
 <title>Freeze Tag 3D</title>
-<link rel="stylesheet" href="style.css?v=avatar3">
+<link rel="stylesheet" href="style.css?v=avatar5">
 <script type="importmap">{"imports":{"three":"./vendor/three.module.min.js"}}</script>
 </head>
 <body>
@@ -67,12 +67,13 @@
     </div>
     <div class="split-only" id="menu-split" hidden><p class="small">Each player has their own view. P1 uses WASD, P2 the arrow keys, P3/P4 controllers; any player can use touch on their own screen.</p></div>
     <details class="studio">
-      <summary>Character studio <span>Make your own look</span></summary>
+      <summary>Character studio <span>Pick a character or make your own</span></summary>
       <div class="studio-content">
         <canvas id="character-preview" width="230" height="190" aria-label="Character preview"></canvas>
         <div class="studio-controls">
           <label>Editing<select id="appearance-player"><option value="0">Player 1</option></select></label>
-          <label>Character<select id="appearance-model"><option value="custom">Custom character</option><option value="supplied">New character</option></select></label>
+          <label>Character<select id="appearance-model"></select></label>
+          <div id="preset-info" hidden><p id="preset-note" class="small"></p><button type="button" class="secondary" id="preset-copy">Edit a copy</button></div>
           <div id="custom-appearance">
           <label>Hair / hat<select id="appearance-style"><option value="short">Short hair</option><option value="side">Side swept</option><option value="spiky">Spiky</option><option value="bob">Bob</option><option value="long">Long</option><option value="ponytail">Ponytail</option><option value="pigtails">Pigtails</option><option value="buns">Double buns</option><option value="curly">Curly</option><option value="bun">Bun</option><option value="cap">Cap</option><option value="beanie">Beanie</option><option value="none">Bald</option><option value="afro" class="avatar-only">Afro</option><option value="mohawk" class="avatar-only">Mohawk</option><option value="braid" class="avatar-only">Braid</option></select></label>
           <label>Top<select id="appearance-top"><option value="tee">T-shirt</option><option value="striped">Striped shirt</option><option value="hoodie">Hoodie</option><option value="jacket">Jacket</option><option value="tank" class="avatar-only">Tank top</option><option value="sweater" class="avatar-only">Sweater</option><option value="jersey" class="avatar-only">Jersey</option></select></label>
@@ -91,7 +92,7 @@
                     <p id="avatar-status" class="small" role="status" aria-live="polite"></p>
         </div>
       </div>
-      <p class="small">Looks are saved on this device for each player. Team markers show who is IT.</p>
+      <p class="small">Looks are saved on this device for each player. Seekers always wear red, whatever their look.</p>
     </details>
     <label class="check" id="rescue-option"><input type="checkbox" id="opt-rescue" checked><span>Runners can thaw frozen teammates (stay close for 1 second)</span></label>
     <button id="start" class="primary">Enter the arena →</button>
@@ -139,6 +140,6 @@
     <div class="actions"><button id="result-menu" class="secondary">Home menu</button><button id="next-round" class="primary" hidden>Next round →</button><button id="replay" class="primary">Play again →</button></div>
   </div>
 </section>
-<script type="module" src="js/main.js?v=avatar3"></script>
+<script type="module" src="js/main.js?v=avatar5"></script>
 </body>
 </html>

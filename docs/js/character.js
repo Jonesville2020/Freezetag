@@ -28,7 +28,7 @@ export const SEEKER_COLOR = 0xe5384c;
 
 export const DEFAULT_APPEARANCE = {
   skin: '#d9a47c', hair: '#2b1b12', shirt: '#3da9fc',
-  pants: '#24303f', shoe: '#f4f4f4', accent: '#ff9f43', style: 'short', top: 'tee', bottom: 'pants', accessory: 'none', model: 'custom',
+  pants: '#24303f', shoe: '#f4f4f4', accent: '#ff9f43', style: 'short', top: 'tee', bottom: 'pants', accessory: 'none', model: 'custom', preset: '',
 };
 export const HAIR_STYLES = ['short', 'side', 'spiky', 'bob', 'long', 'ponytail', 'pigtails', 'buns', 'curly', 'bun', 'cap', 'beanie', 'none'];
 export const TOP_STYLES = ['tee', 'striped', 'hoodie', 'jacket'];
@@ -48,6 +48,10 @@ export function normalizeAppearance(value = {}) {
       style: supplied ? AVATAR_HAIR_STYLES : HAIR_STYLES, top: supplied ? AVATAR_TOP_STYLES : TOP_STYLES,
       bottom: supplied ? AVATAR_BOTTOM_STYLES : BOTTOM_STYLES, accessory: ACCESSORY_STYLES, model: ['custom', 'supplied'],
     }[key];
+    if (key === 'preset') {
+      result.preset = typeof value.preset === 'string' && /^[a-z0-9-]{1,16}$/.test(value.preset) ? value.preset : '';
+      continue;
+    }
     result[key] = options
       ? (options.includes(value[key]) ? value[key] : fallback)
       : (typeof value[key] === 'string' && /^#[0-9a-f]{6}$/i.test(value[key]) ? value[key] : fallback);
@@ -91,6 +95,7 @@ export class Character {
     } else {
       this.#build(seeker ? 'cap' : pick(HAIR_STYLES), pick(TOP_STYLES), pick(BOTTOM_STYLES));
     }
+    this.baseShirt = this.mats.shirt.color.clone();
     this.group.scale.setScalar(0.92);
     this.group.traverse((o) => { if (o.isMesh && o !== this.ice) o.castShadow = true; });
 
@@ -104,6 +109,14 @@ export class Character {
     this.frozenAmt = 0;
     this.reach = 0;
     this.joy = 0;
+  }
+
+  // Classic look: seekers swap their shirt for the seeker red.
+  setSeeker(on) {
+    on = Boolean(on);
+    if (this.seekerOn === on) return;
+    this.seekerOn = on;
+    this.mats.shirt.color.set(on ? SEEKER_COLOR : this.baseShirt);
   }
 
   #mesh(g, m, parent, x = 0, y = 0, z = 0) {

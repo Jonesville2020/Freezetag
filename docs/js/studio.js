@@ -1,6 +1,6 @@
 import * as THREE from 'three';
-import { Character, normalizeAppearance } from './character.js?v=avatar3';
-import { Avatar, loadAvatar } from './avatar.js?v=avatar3';
+import { Character, normalizeAppearance } from './character.js?v=avatar5';
+import { Avatar, loadAvatar } from './avatar.js?v=avatar5';
 
 export class CharacterStudio {
   constructor(canvas) {

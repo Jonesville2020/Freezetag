@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { findSkinnedMesh, attachToBone } from './outfit.js?v=avatar3';
+import { findSkinnedMesh, attachToBone, registerTint } from './outfit.js?v=avatar5';
 
 // Garments are shells cut from the character's own skinned geometry (same skeleton,
 // same weights), pushed outwards along smoothed normals so they deform with every
@@ -273,7 +273,8 @@ function canvasTexture(kind) {
   return (textures[kind] = tex);
 }
 
-function makeMaterial(def, look, group) {
+function makeMaterial(def, avatar, group) {
+  const look = avatar.look;
   const base = new THREE.Color(group === 'top' ? look.shirt : look.pants);
   const color = {
     main: () => base.clone().multiplyScalar(def.shade ?? 1),
@@ -287,6 +288,9 @@ function makeMaterial(def, look, group) {
     color, roughness: def.mat === 'zip' ? 0.35 : 0.88, metalness: def.mat === 'zip' ? 0.8 : 0,
     side: def.double ? THREE.DoubleSide : THREE.FrontSide,
   });
+  if (group === 'top' && def.mat !== 'skin' && def.mat !== 'zip') {
+    registerTint(avatar, def.mat === 'trim' ? 'trim' : 'shirt', m.color, def.mat === 'dark' ? 0.78 : def.mat === 'main' ? def.shade ?? 1 : 1);
+  }
   if (tex) { m.map = tex; m.bumpMap = tex; m.bumpScale = def.tex === 'knit' ? 3 : 1.4; }
   return m;
 }
@@ -553,6 +557,7 @@ function rigid(avatar, mesh, bone, geometry, material, pos) {
 function hoodExtras(avatar, mesh) {
   const s = avatar.model.scale.x;
   const mat = new THREE.MeshStandardMaterial({ color: avatar.look.shirt, roughness: 0.9 });
+  registerTint(avatar, 'shirt', mat.color);
   // bunched hood: a collar roll around the neck base plus a slumped pouch behind
   const roll = new THREE.TorusGeometry(0.068 * s, 0.026 * s, 10, 28, Math.PI * 1.55);
   roll.rotateX(Math.PI / 2);
@@ -566,6 +571,7 @@ function hoodExtras(avatar, mesh) {
 function collarExtras(avatar, mesh) {
   const s = avatar.model.scale.x;
   const mat = new THREE.MeshStandardMaterial({ color: avatar.look.accent, roughness: 0.85, side: THREE.DoubleSide });
+  registerTint(avatar, 'trim', mat.color);
   const g = new THREE.CylinderGeometry(0.078 * s, 0.09 * s, 0.06 * s, 24, 1, true, Math.PI * 0.12, Math.PI * 1.76);
   rigid(avatar, mesh, 'Spine', g, mat, new THREE.Vector3(0, 1.075, -0.05));
 }
@@ -581,7 +587,7 @@ function dress(avatar, group, style, builder, extras) {
     info.built.set(key, pieces.map((p) => ({ ...p, geo: toGeometry(p.tris), tris: null })));
   }
   avatar.clothes ??= {};
-  avatar.clothes[group] = info.built.get(key).map((piece) => skinnedMesh(mesh, piece.geo, makeMaterial(piece, avatar.look, group)));
+  avatar.clothes[group] = info.built.get(key).map((piece) => skinnedMesh(mesh, piece.geo, makeMaterial(piece, avatar, group)));
   extras?.(avatar, mesh);
 }
 

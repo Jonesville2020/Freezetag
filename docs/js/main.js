@@ -1,8 +1,10 @@
 import * as THREE from 'three';
 import { World, LAYOUTS, SIZE, HALF } from './world.js?v=world-refresh';
-import { Character, RUNNER_COLORS, SEEKER_COLOR, normalizeAppearance } from './character.js?v=avatar3';
-import { Avatar, loadAvatar } from './avatar.js?v=avatar3';
-import { CharacterStudio } from './studio.js?v=avatar3';
+import { Character, RUNNER_COLORS, SEEKER_COLOR, normalizeAppearance } from './character.js?v=avatar5';
+import { Avatar, loadAvatar } from './avatar.js?v=avatar5';
+import { CharacterStudio } from './studio.js?v=avatar5';
+import { ROSTER, loadAppearance, resolveAppearance, presetOf, assignCpus } from './roster.js?v=avatar5';
+import { NameTag } from './nametag.js?v=avatar5';
 import { ChaseCamera } from './camera.js?v=world-refresh';
 import { Input } from './input.js?v=controller-menu';
 import { Brain, LEVELS } from './ai.js';
@@ -17,6 +19,7 @@ import { holdDirection } from './steering.js';
 
 const $ = (id) => document.getElementById(id);
 const SEEKER_SPEED = 6.6, RUNNER_SPEED = 6.0, RADIUS = 0.45, TAG_RANGE = 1.0;
+const STUMBLE_MUL = 0.6, STUMBLE_TIME = 0.25, STUMBLE_SPEED = 3.2;
 const THAW_RANGE = 1.8, THAW_TIME = 1.0, GRACE = 1.2, COUNTDOWN = 3;
 
 const renderer = new THREE.WebGLRenderer({ canvas: $('game'), antialias: true });
@@ -31,7 +34,7 @@ const settings = {
   scheme: 'direct', camera: 'separate', ...stored,
   // Split screen keeps its own per-player controls so solo settings are untouched.
   players: Array.from({ length: MAX_PLAYERS }, (_, i) => ({ scheme: 'direct', camera: 'separate', ...stored.players?.[i] })),
-  appearances: Array.from({ length: MAX_PLAYERS }, (_, i) => normalizeAppearance(stored.appearances?.[i])),
+  appearances: Array.from({ length: MAX_PLAYERS }, (_, i) => loadAppearance(stored.appearances?.[i], i)),
   slots: normalizeSlots(stored.slots, MAX_PLAYERS),
   audio: {
     music: Number.isFinite(stored.audio?.music) ? Math.max(0, Math.min(1, stored.audio.music)) : 0.2,
@@ -173,7 +176,10 @@ function startMatch(config, avatarAsset = null) {
       if (o.isSkinnedMesh) o.skeleton.dispose();
     });
     for (const geometry of geometries) geometry.dispose();
-    for (const material of materials) if (!material.userData.avatarShared) material.dispose();
+    for (const material of materials) {
+      material.userData.tagTexture?.dispose();
+      if (!material.userData.avatarShared) material.dispose();
+    }
   }
   const group = game.matchGroup = new THREE.Group();
   scene.add(group);
@@ -222,16 +228,22 @@ function startMatch(config, avatarAsset = null) {
     spawnR.push(p);
   }
   let id = 0;
-  const make = (seeker, p, human, playerIndex = 0) => {
-    const options = { seed: id + 1, seeker, appearance: human ? settings.appearances[playerIndex] : undefined };
-    const char = human && options.appearance.model === 'supplied' ? new Avatar(options, avatarAsset) : new Character(options);
+  const make = (seeker, p, human, playerIndex = 0, cpu = null) => {
+    const appearance = human ? resolveAppearance(settings.appearances[playerIndex]) : cpu.appearance;
+    const options = { seed: id + 1, seeker, appearance };
+    const char = appearance.model === 'supplied' ? new Avatar(options, avatarAsset) : new Character(options);
+    char.setSeeker(seeker);
     char.group.position.set(p.x, 0, p.z);
     char.yaw = seeker ? 0 : Math.random() * Math.PI * 2;
     const e = {
       id: id++, seeker, human, pos: { x: p.x, z: p.z }, vel: { x: 0, z: 0 },
       char, frozen: false, thaw: 0, grace: 0, brain: null, reach: 0,
+      name: human ? presetOf(appearance)?.name ?? `P${playerIndex + 1}` : cpu.name,
     };
     e.runnerColor = human || !seeker ? char.mats.shirt.color.getHex() : RUNNER_COLORS[e.id % RUNNER_COLORS.length];
+    e.tag = new NameTag(e.name);
+    e.tag.setSeeker(seeker);
+    char.group.add(e.tag.sprite);
     group.add(char.group);
     // Blob marker under each character; the human player gets a brighter ring and arrow.
     const mark = new THREE.Mesh(new THREE.CircleGeometry(human ? 0.95 : 0.7, 32),
@@ -250,6 +262,8 @@ function startMatch(config, avatarAsset = null) {
     game.entities.push(e);
     return e;
   };
+  const takenPresets = roles.map((_, i) => presetOf(settings.appearances[i])?.id).filter(Boolean);
+  const cpuLooks = assignCpus(mode === 'maze' ? 0 : Math.max(0, spawnS.length + spawnR.length - count), takenPresets);
   let si = 0, ri = 0;
   const humans = roles.map((role, i) => {
     const seeker = role === 'seeker';
@@ -257,12 +271,12 @@ function startMatch(config, avatarAsset = null) {
     return make(seeker, pos, true, i);
   });
   while (si < spawnS.length) {
-    const e = make(true, spawnS[si++], false);
+    const e = make(true, spawnS[si++], false, 0, cpuLooks.shift());
     e.scout = mode === 'outbreak';
     e.brain = new Brain(game, e, mode === 'outbreak' ? 'scout' : config.level);
   }
   while (ri < spawnR.length && mode !== 'maze') {
-    const e = make(false, spawnR[ri++], false);
+    const e = make(false, spawnR[ri++], false, 0, cpuLooks.shift());
     e.brain = new Brain(game, e, config.level);
   }
   players.forEach((p, i) => {
@@ -317,10 +331,10 @@ function toast(msg, ms = 1800, ent = null) {
   t._timer = setTimeout(() => t.classList.remove('show'), ms);
 }
 
-function burst(x, z, color = 0x9eefff, seenBy = players.map(() => true)) {
+function burst(x, z, color = 0x9eefff, seenBy = players.map(() => true), count = 14) {
   const geom = new THREE.TetrahedronGeometry(0.11);
   geom.userData = {};
-  for (let i = 0; i < 14; i++) {
+  for (let i = 0; i < count; i++) {
     const m = new THREE.Mesh(geom, new THREE.MeshBasicMaterial({ color, transparent: true }));
     m.userData.shared = true;
     m.position.set(x, 0.9, z);
@@ -397,6 +411,11 @@ function step(dt) {
         mul = e.lastMul ?? 1;
       }
     }
+    e.stumble = Math.max(0, (e.stumble ?? 0) - dt);
+    e.stumbleCool = Math.max(0, (e.stumbleCool ?? 0) - dt);
+    const zoneTarget = world.zoneSlow(e.pos.x, e.pos.z);
+    e.zoneMul = (e.zoneMul ?? 1) + (zoneTarget - (e.zoneMul ?? 1)) * (1 - Math.exp(-8 * dt));
+    mul *= e.zoneMul * (e.stumble > 0 ? STUMBLE_MUL : 1);
     const top = (e.seeker ? SEEKER_SPEED : RUNNER_SPEED) * mul;
     const tvx = dir.x * top * (dir.mag > 1 ? 1 : dir.mag), tvz = dir.z * top * (dir.mag > 1 ? 1 : dir.mag);
     // Acceleration is higher when braking or reversing so stops feel crisp.
@@ -418,7 +437,21 @@ function step(dt) {
       b.pos.x += (dx / d) * push * 2 * bw / tw; b.pos.z += (dz / d) * push * 2 * bw / tw;
     }
   }
-  for (const e of entities) world.resolve(e.pos, RADIUS);
+  const contact = {};
+  for (const e of entities) {
+    world.resolve(e.pos, RADIUS, contact);
+    if (!contact.obstacle || contact.depth < 0.01) continue;
+    // Walls only slide; running into a solid prop head-on at speed makes you stumble briefly.
+    const into = -(e.vel.x * contact.nx + e.vel.z * contact.nz);
+    if (into <= 0) continue;
+    if (contact.obstacle.kind === 'prop' && into > STUMBLE_SPEED && !e.stumble && !e.stumbleCool && !e.frozen) {
+      e.stumble = STUMBLE_TIME;
+      e.stumbleCool = STUMBLE_TIME + 0.5;
+      const seen = seenByAll(e);
+      if (seen.some(Boolean)) { burst(e.pos.x - contact.nx * RADIUS, e.pos.z - contact.nz * RADIUS, 0xd9c7a6, seen, 4); if (e.human) sfx.beep(140, 0.06); }
+    }
+    e.vel.x += contact.nx * into; e.vel.z += contact.nz * into;
+  }
 
   if (game.maze) {
     for (const e of entities) {
@@ -448,14 +481,14 @@ function step(dt) {
       for (const r of entities) {
         if (!s.seeker || s.frozen) break;
         if (r.seeker || r.frozen || r.grace > 0) continue;
-        if (dist(s, r) < TAG_RANGE && !world.blocked(s.pos.x, s.pos.z, r.pos.x, r.pos.z, 0)) {
+        if (dist(s, r) < TAG_RANGE && !world.blocked(s.pos.x, s.pos.z, r.pos.x, r.pos.z, 0, 'tag')) {
           if (game.series && seriesTag(game.series, s, r)) {
             r.vel.x = r.vel.z = 0;
             updateRoleAppearance(s);
             updateRoleAppearance(r);
             const seen = seenByAll(r);
             if (seen.some(Boolean)) { burst(r.pos.x, r.pos.z, 0x9eefff, seen); sfx.freeze(); sfx.reaction('frozen'); }
-            if (r.human) toast(config.mode === 'tag' ? 'You are IT!' : 'Frozen! Rescue before infection.', 2000, r);
+            if (r.human) toast(config.mode === 'tag' ? `${s.name} tagged you. You are IT!` : `${s.name} froze you! Rescue before infection.`, 2000, r);
           } else if (!game.series) freeze(r, s);
         }
       }
@@ -481,8 +514,8 @@ function freeze(r, by) {
   r.frozen = true; r.thaw = 0; r.vel.x = r.vel.z = 0;
   const seen = seenByAll(r);
   if (seen.some(Boolean)) { burst(r.pos.x, r.pos.z, 0x9eefff, seen); sfx.freeze(); sfx.reaction('frozen'); }
-  if (r.human) toast('You were frozen! Wait for a rescue.', 2200, r);
-  else if (by.human) toast(`Frozen! ${game.entities.filter((e) => !e.seeker && e.frozen).length}/${game.config.runners}`, 1000, by);
+  if (r.human) toast(`${by.name} froze you! Wait for a rescue.`, 2200, r);
+  else if (by.human) toast(`Froze ${r.name}! ${game.entities.filter((e) => !e.seeker && e.frozen).length}/${game.config.runners}`, 1000, by);
 }
 
 function updateThaw(dt) {
@@ -502,7 +535,8 @@ function updateThaw(dt) {
 }
 
 function updateRoleAppearance(e) {
-  e.char.mats.shirt.color.setHex(e.human ? e.runnerColor : e.seeker ? SEEKER_COLOR : e.runnerColor);
+  e.char.setSeeker(e.seeker);
+  e.tag.setSeeker(e.seeker);
   if (!e.human) e.mark.material.color.setHex(e.seeker ? 0xff3b52 : 0x64e5ff);
   else if (players.length === 1) {
     e.mark.material.color.setHex(e.seeker ? 0xff3b52 : 0xffffff);
@@ -511,7 +545,7 @@ function updateRoleAppearance(e) {
 }
 
 function playerName(e) {
-  return e.human ? `P${e.player.index + 1}` : `CPU ${e.id + 1}`;
+  return e.human && !/^P\d$/.test(e.name) && players.length > 1 ? `${e.name} (P${e.player.index + 1})` : e.name;
 }
 
 function endSeriesRound() {
@@ -591,8 +625,10 @@ function endMatch(winner) {
   $('result-tag').textContent = players.length > 1 ? 'ROUND OVER' : won ? 'YOU WIN' : 'ROUND OVER';
   $('result-title').textContent = winner === 'seekers' ? 'Everyone’s frozen.' : 'Time’s up — runners escape.';
   const frozen = game.entities.filter((e) => !e.seeker && e.frozen).length;
+  const free = game.entities.filter((e) => !e.seeker && !e.frozen).map((e) => e.name);
+  const freeNote = winner === 'runners' && free.length ? ` Still free: ${free.slice(0, 4).join(', ')}${free.length > 4 ? ` +${free.length - 4}` : ''}.` : '';
   const outcomes = players.length > 1 ? ` · ${players.map((p) => `P${p.index + 1} ${p.ent.seeker === (winner === 'seekers') ? 'wins' : 'loses'}`).join(' · ')}` : '';
-  $('result-description').textContent = `${frozen}/${game.config.runners} runners frozen · ${Math.round(game.config.duration - game.time)}s played${outcomes}.`;
+  $('result-description').textContent = `${frozen}/${game.config.runners} runners frozen · ${Math.round(game.config.duration - game.time)}s played${outcomes}.${freeNote}`;
   won ? sfx.win() : sfx.lose();
   setTimeout(() => { if (game.state === 'ended') { $('result').hidden = false; } }, 1600);
 }
@@ -620,11 +656,18 @@ function drawMinimap(p) {
       if (p.explored[z * 64 + x]) mctx.fillRect(x * k, z * k, k + 0.5, k + 0.5);
     }
   }
-  mctx.fillStyle = '#9aa7b4';
-  for (const w of world.rects) {
+  const zoneColors = { mud: '#8a5a32', puddle: '#5fb0e8', sand: '#e3cf94', leaves: '#d98a3a' };
+  for (const z of world.zones) {
+    mctx.fillStyle = zoneColors[z.type] ?? '#888'; mctx.globalAlpha = 0.22;
+    mctx.fillRect((z.minX + HALF) * k, (z.minZ + HALF) * k, z.w * k, z.d * k);
+  }
+  for (const w of world.obstacles) {
     if (game.maze && !p.explored[Math.max(0, Math.min(63, Math.floor(w.z + HALF))) * 64 + Math.max(0, Math.min(63, Math.floor(w.x + HALF)))]) continue;
+    mctx.fillStyle = w.soft ? '#6fae7a' : '#9aa7b4';
+    mctx.globalAlpha = w.soft ? 0.4 : w.cls === 'low' ? 0.45 : w.cls === 'mid' ? 0.75 : 1;
     mctx.fillRect((w.minX + HALF) * k, (w.minZ + HALF) * k, w.w * k, w.d * k);
   }
+  mctx.globalAlpha = 1;
   if (game.maze) {
     const exit = game.maze.exit;
     if (p.explored[Math.floor(exit.z + HALF) * 64 + Math.floor(exit.x + HALF)]) {
@@ -684,7 +727,12 @@ function render(dt, cam) {
     e.seenBy = seenByAll(e);
     e.char.group.position.set(e.pos.x, 0, e.pos.z);
     const celebrating = game.state === 'ended' && e.joyTarget;
-    e.char.update(dt, e.vel, { frozen: e.frozen && game.state !== 'ended', caught: e.caught, thaw: e.thaw, reach: nearTarget && game.countdown <= 0 ? 1 : 0, joy: celebrating ? 1 : 0 });
+    e.char.setSeeker(e.seeker);
+    e.tag.setSeeker(e.seeker);
+    // Characters nobody can see skip their animation work.
+    if (celebrating || e.human || e.seenBy.includes(true)) {
+      e.char.update(dt, e.vel, { frozen: e.frozen && game.state !== 'ended', caught: e.caught, thaw: e.thaw, reach: nearTarget && game.countdown <= 0 ? 1 : 0, joy: celebrating ? 1 : 0 });
+    }
     e.mark.position.set(e.pos.x, 0.03, e.pos.z);
     e.mark.material.opacity = (e.human ? 0.45 + Math.sin(performance.now() / 250) * 0.12 : e.grace > 0 ? 0.6 : 0.22);
     e.thawOn = e.frozen && e.thaw > 0.02;
@@ -707,6 +755,7 @@ function drawViews() {
       const vis = !!e.seenBy?.[idx];
       const cameraClose = game.maze && e === p.ent && p.camera.position.distanceTo(new THREE.Vector3(e.pos.x, 1.65, e.pos.z)) < 1;
       e.char.group.visible = vis && e.blink && !cameraClose;
+      e.tag.sprite.visible = e !== p.ent && Math.hypot(e.pos.x - p.ent.pos.x, e.pos.z - p.ent.pos.z) < 32;
       e.mark.visible = vis;
       e.thawDisc.visible = vis && e.thawOn;
       if (e.arrow) e.arrow.visible = vis;
@@ -818,7 +867,8 @@ document.addEventListener('visibilitychange', () => document.hidden && pause(tru
 let matchRequest = 0;
 async function requestMatch(config, quick = false) {
   const request = ++matchRequest;
-  const needsAvatar = settings.appearances.slice(0, config.players).some((appearance) => appearance.model === 'supplied');
+  // Every CPU is an avatar; the maze has only human players.
+  const needsAvatar = config.mode !== 'maze' || settings.appearances.slice(0, config.players).some((appearance) => appearance.model === 'supplied');
   let asset = null;
   if (needsAvatar) {
     setAvatarStatus('Loading the new character…');
@@ -882,17 +932,38 @@ const keyHint = (i, n) => (n === 1 ? '' : i === 0 ? 'WASD' : i === 1 ? 'Arrows' 
 // Per-player control rows (movement, camera, screen position) for the menu and pause dialogs.
 const SCHEMES = [['direct', 'Joystick · keys · gamepad'], ['tap', 'Tap / click to move']];
 const CAMERAS = [['separate', 'Camera: you steer'], ['follow', 'Camera: follows you']];
-const appearanceKeys = ['skin', 'hair', 'shirt', 'pants', 'shoe', 'accent', 'style', 'top', 'bottom', 'accessory', 'model'];
+const appearanceKeys = ['skin', 'hair', 'shirt', 'pants', 'shoe', 'accent', 'style', 'top', 'bottom', 'accessory'];
 let studio;
+function saveSettings() { localStorage.setItem('ft3d-settings', JSON.stringify(settings)); }
+// Character selector: ten named presets, the editable "My character", and the Classic look.
+{
+  const select = $('appearance-model');
+  for (const [label, gender] of [['Girls', 'girl'], ['Boys', 'boy']]) {
+    const group = document.createElement('optgroup');
+    group.label = label;
+    for (const c of ROSTER.filter((r) => r.gender === gender)) group.append(new Option(c.name, `preset:${c.id}`));
+    select.append(group);
+  }
+  const own = document.createElement('optgroup');
+  own.label = 'Yours';
+  own.append(new Option('My character (editable)', 'supplied'), new Option('Classic (simple look)', 'custom'));
+  select.append(own);
+}
+const characterChoice = (a) => (a.model === 'custom' ? 'custom' : presetOf(a) ? `preset:${a.preset}` : 'supplied');
 function showAppearance() {
   const index = +$('appearance-player').value;
   const appearance = settings.appearances[index];
+  const preset = presetOf(appearance);
+  $('appearance-model').value = characterChoice(appearance);
   for (const key of appearanceKeys) $(`appearance-${key}`).value = appearance[key];
   for (const option of document.querySelectorAll('#custom-appearance .avatar-only')) {
     option.hidden = option.disabled = appearance.model !== 'supplied';
   }
   $('appearance-accessory').closest('label').hidden = appearance.model !== 'supplied';
-  if (studio) studio.show(appearance);
+  $('custom-appearance').hidden = Boolean(preset);
+  $('preset-info').hidden = !preset;
+  if (preset) $('preset-note').textContent = `${preset.name} · ${preset.vibe}. This character has a fixed look.`;
+  if (studio) studio.show(resolveAppearance(appearance));
 }
 function updateAppearancePlayers() {
   const select = $('appearance-player');
@@ -913,13 +984,32 @@ for (const key of appearanceKeys) {
   $(`appearance-${key}`).addEventListener('input', (event) => {
     const index = +$('appearance-player').value;
     settings.appearances[index] = normalizeAppearance({ ...settings.appearances[index], [key]: event.target.value });
-    localStorage.setItem('ft3d-settings', JSON.stringify(settings));
+    saveSettings();
     showAppearance();
   });
 }
+$('appearance-model').addEventListener('change', (event) => {
+  const index = +$('appearance-player').value;
+  const choice = event.target.value;
+  const patch = choice === 'custom' ? { model: 'custom', preset: '' }
+    : choice === 'supplied' ? { model: 'supplied', preset: '' } : { model: 'supplied', preset: choice.slice(7) };
+  settings.appearances[index] = normalizeAppearance({ ...settings.appearances[index], ...patch });
+  saveSettings();
+  showAppearance();
+});
+$('preset-copy').addEventListener('click', () => {
+  const index = +$('appearance-player').value;
+  const preset = presetOf(settings.appearances[index]);
+  if (!preset) return;
+  settings.appearances[index] = normalizeAppearance({ ...preset.appearance, preset: '' });
+  saveSettings();
+  showAppearance();
+  $('appearance-style').focus();
+});
 $('appearance-reset').addEventListener('click', () => {
-  settings.appearances[+$('appearance-player').value] = normalizeAppearance();
-  localStorage.setItem('ft3d-settings', JSON.stringify(settings));
+  const slot = +$('appearance-player').value;
+  settings.appearances[slot] = normalizeAppearance({ model: settings.appearances[slot].model });
+  saveSettings();
   showAppearance();
 });
 const splitRows = ['menu-split', 'pause-split'].map((id) => {

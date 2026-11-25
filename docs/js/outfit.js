@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { SEEKER_COLOR } from './character.js?v=avatar5';
 
 // Shared helpers for dressing the supplied (baked, skinned) character.
 // Builders (avatar-color/hair/clothes/accessories.js) all receive the Avatar and
@@ -49,4 +50,26 @@ export function regionBox(avatar, boneNames) {
     box.expandByPoint(v.fromBufferAttribute(position, i).applyMatrix4(toGroup));
   }
   return box;
+}
+
+// Seeker override: builders register the colours that make up the shirt/top and its trim.
+// setSeeker swaps them in place (no material rebuild), so toggling is just a few Color writes.
+const SEEKER_TINT = {
+  shirt: new THREE.Color(SEEKER_COLOR),
+  hat: new THREE.Color(SEEKER_COLOR),
+  trim: new THREE.Color(0xffe6e9),
+};
+
+export function registerTint(avatar, role, color, scale = 1) {
+  (avatar.tints ??= []).push({ role, color, base: color.clone(), scale });
+  if (avatar.seekerOn) applyTint(avatar.tints.at(-1), true);
+}
+
+function applyTint(tint, on) {
+  if (on) tint.color.copy(SEEKER_TINT[tint.role]).multiplyScalar(tint.scale);
+  else tint.color.copy(tint.base);
+}
+
+export function setTints(avatar, on) {
+  for (const tint of avatar.tints ?? []) applyTint(tint, on);
 }

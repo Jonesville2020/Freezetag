@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { attachToBone } from './outfit.js?v=avatar3';
+import { attachToBone, registerTint } from './outfit.js?v=avatar5';
 
 // Builds hair / hats for avatar.look.style on the head bone, coloured by look.hair (and look.accent for hats).
 // Everything is authored in metres in the head mount frame (+Y up, +Z forward), fitted to the supplied head.
@@ -292,6 +292,7 @@ class Kit {
     const { hair, accent } = avatar.look;
     this.hair = new THREE.MeshStandardMaterial({ color: hair, roughness: 0.62, metalness: 0, vertexColors: true });
     this.accent = new THREE.MeshStandardMaterial({ color: accent, roughness: 0.7, metalness: 0, vertexColors: true });
+    registerTint(avatar, 'hat', this.accent.color);
     this.root = new THREE.Group();
     this.root.name = 'avatar-hair';
     this.root.pivot = V(0, 0, 0);
